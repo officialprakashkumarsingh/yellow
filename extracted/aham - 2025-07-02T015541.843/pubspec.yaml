@@ -28,6 +28,7 @@ dependencies:
   html: ^0.15.6
   supabase_flutter: ^2.9.1
   google_mobile_ads: ^5.3.1
+  speech_to_text: ^7.0.0
   
 
 dev_dependencies:

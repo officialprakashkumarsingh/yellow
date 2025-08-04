@@ -228,6 +228,7 @@ class OpenAIService {
             final data = jsonDecode(jsonData);
             final content = data['choices']?[0]?['delta']?['content'];
             if (content != null && content is String) {
+              debugPrint('Streaming chunk: "$content"');
               controller.add(content);
             }
           } catch (e) {

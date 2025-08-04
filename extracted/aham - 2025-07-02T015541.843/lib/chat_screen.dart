@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import 'package:ahamai/api.dart';
 import 'package:ahamai/chat_ui_helpers.dart';
@@ -56,6 +57,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
   late String _selectedChatModelId;
   bool _isModelSetupComplete = false;
+  
+  // Speech-to-text functionality
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  bool _isListening = false;
 
   StreamSubscription? _streamSubscription;
   http.Client? _httpClient;
@@ -98,6 +104,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _isStoppedByUser = false;
 
     _initialize();
+    _initSpeech();
     
     _controller.addListener(() {
       setState(() {});
@@ -162,6 +169,51 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     // No separate model initialization needed
 
     if (mounted) setState(() {});
+  }
+
+  // Initialize speech-to-text
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize();
+    setState(() {});
+  }
+
+  // Start listening for speech
+  void _startListening() async {
+    if (!_speechEnabled) {
+      _showStyledSnackBar(message: "Speech recognition not available", isError: true);
+      return;
+    }
+
+    setState(() => _isListening = true);
+    
+    await _speechToText.listen(
+      onResult: (result) {
+        setState(() {
+          _controller.text = result.recognizedWords;
+        });
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 3),
+      partialResults: true,
+      localeId: 'en_US',
+      cancelOnError: true,
+      listenMode: ListenMode.confirmation,
+    );
+  }
+
+  // Stop listening for speech
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() => _isListening = false);
+  }
+
+  // Toggle listening
+  void _toggleListening() {
+    if (_isListening) {
+      _stopListening();
+    } else {
+      _startListening();
+    }
   }
 
   void _addMessageToList(ChatMessage message) {
@@ -1256,12 +1308,13 @@ Based on the successful execution of your plan, provide the final synthesized an
       );
     } else {
       return IconButton(
-        icon: const Icon(CupertinoIcons.mic),
-        onPressed: canInteract ? () {
-          _showStyledSnackBar(message: "Voice input is not implemented yet.");
-        } : null,
-        tooltip: "Voice input",
-        color: theme.colorScheme.secondary,
+        icon: Icon(
+          _isListening ? CupertinoIcons.mic_fill : CupertinoIcons.mic,
+          color: _isListening ? Colors.red : null,
+        ),
+        onPressed: canInteract && _speechEnabled ? _toggleListening : null,
+        tooltip: _isListening ? "Stop recording" : "Voice input",
+        color: _isListening ? Colors.red : theme.colorScheme.secondary,
       );
     }
   }

@@ -627,25 +627,19 @@ class _ThinkingIndicatorState extends State<ThinkingIndicator> with TickerProvid
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-        child: GlassmorphismPanel(
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(dotCount, (index) {
-                return AnimatedBuilder(
-                  animation: _animations[index],
-                  builder: (context, child) => Transform.translate(offset: Offset(0, _animations[index].value), child: child),
-                  child: Container(
-                    width: dotSize, height: dotSize,
-                    margin: EdgeInsets.only(left: index == 0 ? 0 : spacing, right: index == dotCount - 1 ? 0 : spacing),
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                );
-              }),
-            ),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(dotCount, (index) {
+            return AnimatedBuilder(
+              animation: _animations[index],
+              builder: (context, child) => Transform.translate(offset: Offset(0, _animations[index].value), child: child),
+              child: Container(
+                width: dotSize, height: dotSize,
+                margin: EdgeInsets.only(left: index == 0 ? 0 : spacing, right: index == dotCount - 1 ? 0 : spacing),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+            );
+          }),
         ),
       ),
     );

@@ -26,11 +26,7 @@ import 'logincredits.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarDividerColor: Colors.transparent,
-  ));
+  // Initial system chrome setup - will be overridden by theme-aware setup
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   runApp(
@@ -59,12 +55,15 @@ class AhamRoot extends StatelessWidget {
         // Navigation bar: Dark color for dark mode, light color for light mode
         final navBarColor = isDarkMode ? const Color(0xFF1C1C1E) : const Color(0xFFF8F9FA);
         
+        debugPrint('Theme Update: isDark=$isDarkMode, navBarColor=$navBarColor, statusIcons=$statusBarBrightness');
+        
         SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: statusBarBrightness,
           systemNavigationBarColor: navBarColor,
           systemNavigationBarIconBrightness: statusBarBrightness,
           systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
         ));
 
         return MaterialApp(
