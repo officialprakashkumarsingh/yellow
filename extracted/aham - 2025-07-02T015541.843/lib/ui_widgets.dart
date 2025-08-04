@@ -48,12 +48,15 @@ class StyledDialog extends StatelessWidget {
 }
 
 class StaticGradientBackground extends StatelessWidget {
-  final bool isDark;
-  const StaticGradientBackground({super.key, required this.isDark});
+  final bool? isDark;
+  final Widget? child;
+  const StaticGradientBackground({super.key, this.isDark, this.child});
 
   @override
   Widget build(BuildContext context) {
-    final colors = isDark ? [const Color(0xFF1c1c1e), const Color(0xFF101011)] : [const Color(0xFFf7f7f7), const Color(0xFFFFFFFF)];
+    final theme = Theme.of(context);
+    final isDarkMode = isDark ?? (theme.brightness == Brightness.dark);
+    final colors = isDarkMode ? [const Color(0xFF1c1c1e), const Color(0xFF101011)] : [const Color(0xFFf7f7f7), const Color(0xFFFFFFFF)];
 
     return Container(
       decoration: BoxDecoration(
@@ -64,6 +67,7 @@ class StaticGradientBackground extends StatelessWidget {
           stops: const [0.0, 1.0],
         ),
       ),
+      child: child,
     );
   }
 }
