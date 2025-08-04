@@ -2,16 +2,13 @@
 
 import 'dart:typed_data';
 import 'package:flutter/widgets.dart'; // Added for IconData
-import 'package:aham/web_search.dart';
+import 'package:ahamai/web_search.dart';
 
-// MODIFIED: Added 'agent_status' and 'scraped_content' types
 enum MessageType { 
   text, 
   image, 
   presentation, 
-  file, 
-  agent_status,
-  scraped_content // <--- THIS IS THE FIX
+  file,
 }
 
 class ChatMessage {
@@ -27,8 +24,7 @@ class ChatMessage {
   final List<String>? attachedContainedFiles;
   final DateTime timestamp;
   final String? filePath;
-  // NEW: Added statusIcon for agent UI
-  final IconData? statusIcon;
+
 
 
   ChatMessage({
@@ -44,7 +40,7 @@ class ChatMessage {
     this.attachedContainedFiles,
     required this.timestamp,
     this.filePath,
-    this.statusIcon, // NEW: Added to constructor
+
   });
 
   Map<String, dynamic> toJson() => {
@@ -59,7 +55,7 @@ class ChatMessage {
     'attachedContainedFiles': attachedContainedFiles,
     'timestamp': timestamp.toIso8601String(),
     'filePath': filePath,
-    // 'statusIcon' is a UI-only property and is not serialized to JSON
+
   };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -78,7 +74,7 @@ class ChatMessage {
       attachedContainedFiles: json['attachedContainedFiles'] != null ? List<String>.from(json['attachedContainedFiles']) : null,
       timestamp: DateTime.tryParse(json['timestamp'] ?? '') ?? DateTime.now(),
       filePath: json['filePath'],
-      // 'statusIcon' is not loaded from JSON
+  
   );
 }
 

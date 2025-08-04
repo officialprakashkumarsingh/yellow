@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:aham/models.dart';
-import 'package:aham/presentation_generator.dart';
-import 'package:aham/theme.dart';
-import 'package:aham/web_search.dart';
+import 'package:ahamai/models.dart';
+import 'package:ahamai/presentation_generator.dart';
+import 'package:ahamai/theme.dart';
+import 'package:ahamai/web_search.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:lottie/lottie.dart';
 import 'chat_screen.dart';
 import 'chat_ui_helpers.dart';
 import 'live_activity_indicator.dart';
@@ -48,12 +49,15 @@ class StyledDialog extends StatelessWidget {
 }
 
 class StaticGradientBackground extends StatelessWidget {
-  final bool isDark;
-  const StaticGradientBackground({super.key, required this.isDark});
+  final bool? isDark;
+  final Widget? child;
+  const StaticGradientBackground({super.key, this.isDark, this.child});
 
   @override
   Widget build(BuildContext context) {
-    final colors = isDark ? [const Color(0xFF1c1c1e), const Color(0xFF101011)] : [const Color(0xFFf7f7f7), const Color(0xFFFFFFFF)];
+    final theme = Theme.of(context);
+    final isDarkMode = isDark ?? (theme.brightness == Brightness.dark);
+    final colors = isDarkMode ? [const Color(0xFF1c1c1e), const Color(0xFF101011)] : [const Color(0xFFf7f7f7), const Color(0xFFFFFFFF)];
 
     return Container(
       decoration: BoxDecoration(
@@ -64,6 +68,7 @@ class StaticGradientBackground extends StatelessWidget {
           stops: const [0.0, 1.0],
         ),
       ),
+      child: child,
     );
   }
 }
@@ -185,6 +190,11 @@ class StatelessMessageWidget extends StatelessWidget {
         if (isModelMessage) {
           if (message.text == 'Searching the web...') return const LiveActivityIndicator(initialLabel: 'Searching the web...', activities: ['Analyzing top results...', 'Composing answer...'], icon: Icons.public);
           
+          // Check if this is an error message
+          if (message.text.startsWith('ERROR:')) {
+            return _buildErrorMessage(message.text.substring(6).trim(), context);
+          }
+          
           final content = _parseMessageContent(message.text);
           final thoughts = content['thoughts']!;
           final cleanedMessage = content['cleanedMessage']!;
@@ -201,11 +211,12 @@ class StatelessMessageWidget extends StatelessWidget {
                 if (cleanedMessage.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                    child: isDark 
-                      ? Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent)
-                      : Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), 
+                      child: messageContent
+                    ),
                   ),
-                if (cleanedMessage.isNotEmpty && !message.text.startsWith('❌ Error:')) 
+                if (cleanedMessage.isNotEmpty && !message.text.startsWith('ERROR:')) 
                   AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
               ]
             )
@@ -348,7 +359,41 @@ class ThoughtsExpansionPanel extends StatelessWidget {
   }
 }
 
-Map<String, String> _parseMessageContent(String rawText) {
+    Widget _buildErrorMessage(String errorText, BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: Colors.red.shade600,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                errorText,
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, String> _parseMessageContent(String rawText) {
   final thoughtRegex = RegExp(r"<(thought|tool_code|think|reasoning)>([\s\S]*?)<\/\1>\n*", multiLine: true);
   final thoughtsBuffer = StringBuffer();
   

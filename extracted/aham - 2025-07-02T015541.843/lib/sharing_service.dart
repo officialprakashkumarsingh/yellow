@@ -39,7 +39,7 @@ class SharingService {
     final match = phoneRegex.firstMatch(prompt);
     String? phoneNumber = match?.group(0)?.replaceAll(RegExp(r'[\s-]'), '');
 
-    final text = 'Shared from Aham:\n\n*User Prompt:*\n$prompt\n\n*AI Response:*\n$content';
+    final text = 'Shared from AhamAI:\n\n*User Prompt:*\n$prompt\n\n*AI Response:*\n$content';
     final encodedText = Uri.encodeComponent(text);
     
     Uri? uri;
@@ -69,11 +69,11 @@ class SharingService {
     final match = emailRegex.firstMatch(prompt);
     String? recipient = match?.group(0);
 
-    final subject = 'Information shared from Aham';
+        final subject = 'Information shared from AhamAI';
     final body = '''
-Hello,
+    Hello,
 
-Here is the information you requested from Aham:
+    Here is the information you requested from AhamAI:
 
 ---
 User Prompt:

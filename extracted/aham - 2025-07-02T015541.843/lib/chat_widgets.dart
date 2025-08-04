@@ -1,15 +1,18 @@
+import 'dart:async';
+import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_markdown/flutter_markdown.dart'; // Added for MarkdownBody
-import 'dart:ui'; // For ImageFilter
 
-import 'package:aham/api.dart';
-import 'package:aham/theme.dart';
-import 'package:aham/web_search.dart';
-import 'package:aham/models.dart'; // For ChatMessage, MessageType
-import 'package:aham/chat_ui_helpers.dart'; // For ChatInfo
-import 'package:aham/live_activity_indicator.dart'; // For LiveActivityIndicator
+import 'package:ahamai/api.dart';
+import 'package:ahamai/theme.dart';
+import 'package:ahamai/web_search.dart';
+import 'package:ahamai/models.dart'; // For ChatMessage, MessageType
+import 'package:ahamai/chat_ui_helpers.dart'; // For ChatInfo
+import 'package:ahamai/live_activity_indicator.dart'; // For LiveActivityIndicator
+import 'package:ahamai/presentation_generator.dart'; // For PresentationViewScreen
 
 // --- Generic UI Widgets ---
 class StyledDialog extends StatelessWidget {
@@ -202,7 +205,7 @@ class StatelessMessageWidget extends StatelessWidget {
                 : Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent),
               ),
             if (message.searchResults != null && message.searchResults!.isNotEmpty) SearchResultsWidget(results: message.searchResults!),
-            if (cleanedMessage.isNotEmpty && !message.text.startsWith('❌ Error:')) AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
+            if (cleanedMessage.isNotEmpty && !message.text.startsWith('ERROR:')) AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
           ]));
         }
 
@@ -453,7 +456,10 @@ class SuggestionCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ChatScreen(initialMessage: prompt, chatInfoStream: chatInfoStream))),
+      onTap: () {
+        // TODO: Navigate to chat screen - for now just close
+        Navigator.pop(context);
+      },
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
@@ -738,7 +744,7 @@ class _ImagePromptSheetState extends State<ImagePromptSheet> {
       backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) {
-        return FutureBuilder<List<String>>(
+        return FutureBuilder<List<ImageModelConfig>>(
           future: ImageApi.fetchModels(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
@@ -752,10 +758,10 @@ class _ImagePromptSheetState extends State<ImagePromptSheet> {
               itemBuilder: (context, index) {
                 final model = models[index];
                 return ListTile(
-                  title: Text(model),
-                  trailing: _selectedModel == model ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor) : null,
+                  title: Text(model.displayName),
+                  trailing: _selectedModel == model.modelId ? Icon(Icons.check_circle, color: Theme.of(context).primaryColor) : null,
                   onTap: () {
-                    setState(() => _selectedModel = model);
+                    setState(() => _selectedModel = model.modelId);
                     Navigator.pop(context);
                   },
                 );
@@ -772,7 +778,7 @@ class _ImagePromptSheetState extends State<ImagePromptSheet> {
     super.initState();
     ImageApi.fetchModels().then((models) {
       if (mounted && models.isNotEmpty) {
-        setState(() => _selectedModel = models.first);
+        setState(() => _selectedModel = models.first.modelId);
       }
     });
   }

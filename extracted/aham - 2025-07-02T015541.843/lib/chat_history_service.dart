@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:aham/models.dart'; // Assuming ChatInfo is in models.dart
+import 'package:ahamai/models.dart'; // Assuming ChatInfo is in models.dart
 
 class ChatHistoryService {
   static final _client = Supabase.instance.client;

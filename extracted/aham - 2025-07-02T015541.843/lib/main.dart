@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:aham/chat_history_service.dart';
-import 'package:aham/logincredits.dart';
+import 'package:ahamai/chat_history_service.dart';
+import 'package:ahamai/logincredits.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -15,20 +15,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'api.dart';
 import 'chat_screen.dart';
+import 'chat_history_service.dart';
 import 'models.dart';
 import 'notification_screen.dart';
 import 'notification_service.dart';
 import 'theme.dart';
 import 'ui_widgets.dart';
+import 'logincredits.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent,
-    systemNavigationBarDividerColor: Colors.transparent,
-  ));
+  // Initial system chrome setup - will be overridden by theme-aware setup
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   runApp(
@@ -46,10 +44,17 @@ class AhamRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeNotifier>(
       builder: (context, theme, child) {
-        final brightness = theme.themeMode == ThemeMode.light ? Brightness.dark : Brightness.light;
+        // Set system UI colors based on current theme
+        final isDark = theme.themeMode == ThemeMode.dark || 
+                      (theme.themeMode == ThemeMode.system && 
+                       WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark);
+        
         SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-          statusBarIconBrightness: brightness,
-          systemNavigationBarIconBrightness: brightness,
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: isDark ? const Color(0xFF121212) : const Color(0xFFFFFFFF),
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
         ));
 
         return MaterialApp(
@@ -77,8 +82,8 @@ class _AppInitializerState extends State<AppInitializer> {
   @override
   void initState() {
     super.initState();
-    _initializationFuture = Future.wait([
-      CreditService.instance.initialize(),
+          _initializationFuture = Future.wait([
+        AuthService.instance.initialize(),
       ApiConfigService.instance.initialize(),
       MobileAds.instance.initialize(),
     ]);
@@ -87,7 +92,7 @@ class _AppInitializerState extends State<AppInitializer> {
   void _retry() {
     setState(() {
        _initializationFuture = Future.wait([
-        CreditService.instance.initialize(),
+        AuthService.instance.initialize(),
         ApiConfigService.instance.initialize(),
         MobileAds.instance.initialize(),
       ]);
@@ -117,14 +122,14 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
-      stream: CreditService.instance.authStateChanges,
+      stream: AuthService.instance.authStateChanges,
       builder: (context, snapshot) {
         final session = snapshot.data?.session;
         if (session != null) {
           return const _AppStartDecision();
-        } else {
-          return const AuthScreen();
-        }
+                  } else {
+            return const AuthScreen();
+          }
       },
     );
   }
@@ -161,7 +166,7 @@ class ThemedLoadingScreen extends StatelessWidget {
                 children: [
                   const CupertinoActivityIndicator(radius: 15.0),
                   const SizedBox(height: 20),
-                  Text('Waking up Aham...', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
+                  Text('Waking up AhamAI...', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)),
                 ],
               ),
             ),
@@ -334,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       final Uint8List bytes = utf8.encode(chatData);
       final String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'Please select an output file:',
-        fileName: 'aham_backup_${DateTime.now().toIso8601String().split('T').first}.json',
+                        fileName: 'ahamai_backup_${DateTime.now().toIso8601String().split('T').first}.json',
         bytes: bytes,
       );
       if (outputFile != null) {
@@ -452,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 onRestoreChats: _restoreChats,
                 onSignOut: () async {
                   Navigator.pop(context);
-                  await CreditService.instance.signOut();
+                  await AuthService.instance.signOut();
                   // No need to clear chats locally, AuthGate will rebuild the screen.
                 },
               ),
@@ -561,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         scrolledUnderElevation: 0,
         backgroundColor: Colors.transparent,
         leading: IconButton(icon: const Icon(Icons.person_outline_rounded), onPressed: () => _showProfileSheet(context), tooltip: 'Profile & Settings'),
-        title: const Text('Aham'),
+                  title: const Text('AhamAI'),
         centerTitle: true,
         actions: [
             IconButton(
@@ -602,7 +607,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0),
       children: [
         const Text(
-          'Hello, I am Aham.',
+                      'Hello, I am AhamAI.',
           style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
@@ -977,25 +982,9 @@ class _ProfileSettingsSheetState extends State<ProfileSettingsSheet> {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.email_outlined),
             title: const Text('Email'),
-            subtitle: Text(CreditService.instance.currentUser?.email ?? 'Not available'),
+            subtitle: Text(AuthService.instance.currentUser?.email ?? 'Not available'),
           ),
-          FutureBuilder<int>(
-            future: CreditService.instance.getCredits(),
-            builder: (context, snapshot) {
-              final credits = snapshot.data ?? 0;
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(CupertinoIcons.creditcard, color: Colors.green),
-                title: Text('You have $credits credits'),
-                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const CreditHistoryScreen()));
-                },
-              );
-            },
-          ),
-          RewardedAdCreditTile(onCreditsAdded: () => setState(() {})),
+          RewardedAdTile(onAdWatched: () => setState(() {})),
           const Divider(),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
