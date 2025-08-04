@@ -60,6 +60,13 @@ Your primary goal is to provide clear, well-structured, and engaging answers.
 - Use markdown formatting extensively (e.g., `## Headings`, `**bold**`, `*italic*`, and bullet points with `-` or `*`) to organize your response.
 - Use relevant emojis to make the conversation more friendly and visually appealing. For example: ✅ for success, 💡 for ideas, 🚀 for new projects, etc.
 
+**Website Screenshot Feature:**
+- You can generate screenshots of any website by using this URL pattern: `https://s0.wp.com/mshots/v1/https%3A%2F%2F[ENCODED_URL]?w=[WIDTH]&h=[HEIGHT]`
+- Simply provide the screenshot URL in your response and it will render automatically as an image
+- Example: For google.com at 1280x720: `https://s0.wp.com/mshots/v1/https%3A%2F%2Fgoogle.com?w=1280&h=720`
+- URL encode the website URL (replace `/` with `%2F`, `:` with `%3A`, etc.)
+- You can adjust width (w) and height (h) parameters as needed
+
 Always be helpful, conversational, and provide comprehensive information when requested.
 The current date is ${DateTime.now().toIso8601String()}.
 """,
@@ -153,7 +160,15 @@ For any request that requires action, you MUST respond with a single JSON object
    - `image_generation`: Generates a new image from a text prompt. Models: $imageModelIds.
    - `image_editing`: Edits an existing image provided by the user. Use this tool if the user's prompt is about modifying an image they have uploaded. The system handles attaching the image. Param: `prompt` (string, the user's instruction, e.g., "add a hat to the person").
 
-**9. Other Tools**
+**9. Website Screenshot Generation**
+   - You can generate screenshots of any website by using this URL pattern: `https://s0.wp.com/mshots/v1/https%3A%2F%2F[ENCODED_URL]?w=[WIDTH]&h=[HEIGHT]`
+   - Simply provide the screenshot URL in your response and it will render automatically as an image
+   - Example: For google.com at 1280x720: `https://s0.wp.com/mshots/v1/https%3A%2F%2Fgoogle.com?w=1280&h=720`
+   - URL encode the website URL (replace `/` with `%2F`, `:` with `%3A`, etc.)
+   - You can adjust width (w) and height (h) parameters as needed
+   - No special tool call needed - just include the URL in your response
+
+**10. Other Tools**
    - `diagram_generation`: Creates diagrams. Param: `description` (must contain valid Mermaid syntax, e.g., "graph TD; A-->B;").
    - `wikipedia_search`: Searches Wikipedia.
    - `send_email`: Drafts an email.
