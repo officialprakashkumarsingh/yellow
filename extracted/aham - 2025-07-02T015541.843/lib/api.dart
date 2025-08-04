@@ -8,7 +8,7 @@ class ApiConfigService {
 
   List<ChatModelConfig> _availableModels = [];
   bool _isInitialized = false;
-  String _selectedModelId = 'moonshotai/kimi-k2-instruct'; // Default model
+  String _selectedModelId = 'gpt-4o-mini'; // Default model
 
   // API Configuration
   static const String _apiBaseUrl = 'https://ahamai-api.officialprakashkrsingh.workers.dev';
@@ -43,8 +43,13 @@ class ApiConfigService {
           apiUrl: _apiBaseUrl,
         )).toList();
         
+        // Set the first available model as default if we have models
+        if (_availableModels.isNotEmpty) {
+          _selectedModelId = _availableModels.first.modelId;
+        }
+        
         _isInitialized = true;
-        debugPrint("API configuration loaded successfully. Found ${_availableModels.length} models.");
+        debugPrint("API configuration loaded successfully. Found ${_availableModels.length} models. Default: $_selectedModelId");
       } else {
         throw Exception('Failed to load models: Status code ${response.statusCode}');
       }
@@ -52,16 +57,6 @@ class ApiConfigService {
       debugPrint("Warning: Could not load models from API. Using fallback. Error: $e");
       // Fallback to default models if API fails
       _availableModels = [
-        ChatModelConfig(
-          displayName: 'Kimi K2 Instruct',
-          modelId: 'moonshotai/kimi-k2-instruct',
-          provider: 'ahamai',
-          type: 'chat',
-          status: 'active',
-          description: 'Advanced AI model by Moonshot AI',
-          apiKey: _apiKey,
-          apiUrl: _apiBaseUrl,
-        ),
         ChatModelConfig(
           displayName: 'GPT-4o Mini',
           modelId: 'gpt-4o-mini',
@@ -102,15 +97,46 @@ class ApiConfigService {
         return 'Claude 3.5 Sonnet';
       case 'claude-3-haiku-20240307':
         return 'Claude 3 Haiku';
+      case 'claude-4-sonnet':
+        return 'Claude 4 Sonnet';
+      case 'claude-4-opus':
+        return 'Claude 4 Opus';
+      case 'claude-3.5-sonnet':
+        return 'Claude 3.5 Sonnet';
+      case 'claude-3.7-sonnet':
+        return 'Claude 3.7 Sonnet';
+      case 'kimi-k2':
+        return 'Kimi K2';
+      case 'kimi-k2-instruct':
+        return 'Kimi K2 Instruct';
+      case 'grok-3':
+        return 'Grok 3';
+      case 'sonar':
+        return 'Sonar';
+      case 'sonar-pro':
+        return 'Sonar Pro';
+      case 'deepseek-chat-v3-0324-free':
+        return 'DeepSeek Chat V3';
       case 'gemini-2.0-flash-exp':
         return 'Gemini 2.0 Flash';
       case 'gemini-1.5-pro':
         return 'Gemini 1.5 Pro';
       default:
-        return modelId.replaceAll('-', ' ').split(' ')
-            .map((word) => word[0].toUpperCase() + word.substring(1))
-            .join(' ');
+        // Handle provider/model format
+        if (modelId.contains('/')) {
+          final parts = modelId.split('/');
+          if (parts.length == 2) {
+            return _formatSimpleModelName(parts[1]);
+          }
+        }
+        return _formatSimpleModelName(modelId);
     }
+  }
+
+  String _formatSimpleModelName(String modelId) {
+    return modelId.replaceAll('-', ' ').split(' ')
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
   }
 
   String get defaultModelId {
