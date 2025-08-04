@@ -282,10 +282,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       return;
     }
 
-    if (_messages.isNotEmpty && _messages.last.role == 'model' && _messages.last.text.isEmpty) {
-       setState(() {});
-    }
-
     if (_messages.isNotEmpty && _messages.last.role == 'model') {
       final lastMessage = _messages.last;
       final updatedMessage = ChatMessage(
@@ -1135,13 +1131,14 @@ Based on the successful execution of your plan, provide the final synthesized an
         return const ImageShimmer();
     }
 
+    // Show thinking indicator only when streaming AND message is completely empty
     if (message.role == 'model' && _isStreaming && index == _messages.length - 1 && message.text.isEmpty) {
       return const ThinkingIndicator();
     }
 
     return DefaultTextStyle(
       style: kMessageTextStyle,
-      child: (message.role == 'model' && _isStreaming && index == _messages.length - 1)
+      child: (message.role == 'model' && _isStreaming && index == _messages.length - 1 && message.text.isNotEmpty)
           ? StreamingMessageWidget(rawText: message.text, hasAttachment: (index > 0 && (_messages[index - 1].attachedFileName != null || _messages[index - 1].imageBytes != null)))
           : StatelessMessageWidget(
               message: message,

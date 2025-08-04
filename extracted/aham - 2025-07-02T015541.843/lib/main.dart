@@ -44,26 +44,13 @@ class AhamRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeNotifier>(
       builder: (context, theme, child) {
-        // Get the actual current brightness based on system/theme mode
-        final platformBrightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-        final effectiveBrightness = theme.themeMode == ThemeMode.system 
-            ? platformBrightness 
-            : (theme.themeMode == ThemeMode.dark ? Brightness.dark : Brightness.light);
-        
-        final isDarkMode = effectiveBrightness == Brightness.dark;
-        final statusBarBrightness = isDarkMode ? Brightness.light : Brightness.dark;
-        // Navigation bar: Dark color for dark mode, light color for light mode
-        final navBarColor = isDarkMode ? const Color(0xFF1C1C1E) : const Color(0xFFF8F9FA);
-        
-        debugPrint('Theme Update: isDark=$isDarkMode, navBarColor=$navBarColor, statusIcons=$statusBarBrightness');
-        
-        SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+        // Keep both status bar and navigation bar transparent for clean look
+        SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: statusBarBrightness,
-          systemNavigationBarColor: navBarColor,
-          systemNavigationBarIconBrightness: statusBarBrightness,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: Colors.transparent,
+          systemNavigationBarIconBrightness: Brightness.light,
           systemNavigationBarDividerColor: Colors.transparent,
-          systemNavigationBarContrastEnforced: false,
         ));
 
         return MaterialApp(
