@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:aham/openai_service.dart';
 import 'api.dart';
 import 'theme.dart';
 
 class PresentationGenerator {
   static Future<List<String>> generateSlides(String topic, String apiKey) async {
-    // Fetch the presentation model configuration dynamically
-    final presentationConfig = ApiConfigService.instance.presentationModel;
-    final model = GenerativeModel(model: presentationConfig.modelId, apiKey: apiKey);
+    // Use the selected model for presentation generation
+    final selectedConfig = ApiConfigService.instance.selectedModel;
+    final model = GenerativeModel(model: selectedConfig.modelId, apiKey: apiKey);
     
     final prompt = """
     You are an expert presentation creator. Your task is to generate content for a slide deck on the topic: "$topic".

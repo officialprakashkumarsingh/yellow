@@ -6,55 +6,152 @@ class ApiConfigService {
   ApiConfigService._privateConstructor();
   static final ApiConfigService instance = ApiConfigService._privateConstructor();
 
-  Map<String, dynamic>? _config;
+  List<ChatModelConfig> _availableModels = [];
   bool _isInitialized = false;
+  String _selectedModelId = 'gpt-4o-mini'; // Default model
 
-  // FIX: Added a public getter for the initialization status
+  // API Configuration
+  static const String _apiBaseUrl = 'https://ahamai-api.officialprakashkrsingh.workers.dev';
+  static const String _apiKey = 'ahamaibyprakash25';
+
   bool get isInitialized => _isInitialized;
-
-  static const String _obfuscatedUrl = 'aHR0cHM6Ly9naXN0LmdpdGh1YnVzZXJjb250ZW50LmNvbS9vZmZpY2lhbHByYWthc2hrdW1hcnNpbmdoL2IxZTU0MTdjMjZjN2M2OTQ4MzU1ODkzYzBkNDc2MGM1L3Jhdy9haGFtLWFwaS5qc29u';
 
   Future<void> initialize() async {
     if (_isInitialized) return;
     try {
-      final url = utf8.decode(base64.decode(_obfuscatedUrl));
-      final response = await http.get(Uri.parse(url));
+      // Fetch available models from v1/models endpoint
+      final response = await http.get(
+        Uri.parse('$_apiBaseUrl/v1/models'),
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+      );
+      
       if (response.statusCode == 200) {
-        _config = jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+        final List<dynamic> models = data['data'] ?? [];
+        
+        _availableModels = models.map((model) => ChatModelConfig(
+          displayName: _formatModelName(model['id'] ?? 'Unknown Model'),
+          modelId: model['id'] ?? 'gpt-4o-mini',
+          provider: 'ahamai',
+          type: 'chat',
+          status: 'active',
+          description: model['description'] ?? 'AI Model',
+          apiKey: _apiKey,
+          apiUrl: _apiBaseUrl,
+        )).toList();
+        
         _isInitialized = true;
-        debugPrint("API configuration loaded successfully.");
+        debugPrint("API configuration loaded successfully. Found ${_availableModels.length} models.");
       } else {
-        throw Exception('Failed to load remote API config: Status code ${response.statusCode}');
+        throw Exception('Failed to load models: Status code ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint("FATAL: Could not initialize ApiConfigService. $e");
-      throw Exception('Could not fetch app configuration. Please check your internet connection and restart the app.');
+      debugPrint("Warning: Could not load models from API. Using fallback. Error: $e");
+      // Fallback to default models if API fails
+      _availableModels = [
+        ChatModelConfig(
+          displayName: 'GPT-4o Mini',
+          modelId: 'gpt-4o-mini',
+          provider: 'ahamai',
+          type: 'chat',
+          status: 'active',
+          description: 'Fast and efficient model',
+          apiKey: _apiKey,
+          apiUrl: _apiBaseUrl,
+        ),
+        ChatModelConfig(
+          displayName: 'GPT-4o',
+          modelId: 'gpt-4o',
+          provider: 'ahamai',
+          type: 'chat',
+          status: 'active',
+          description: 'Advanced reasoning model',
+          apiKey: _apiKey,
+          apiUrl: _apiBaseUrl,
+        ),
+      ];
+      _isInitialized = true;
+    }
+  }
+
+  String _formatModelName(String modelId) {
+    // Convert model IDs to user-friendly names
+    switch (modelId.toLowerCase()) {
+      case 'gpt-4o-mini':
+        return 'GPT-4o Mini';
+      case 'gpt-4o':
+        return 'GPT-4o';
+      case 'gpt-4-turbo':
+        return 'GPT-4 Turbo';
+      case 'gpt-3.5-turbo':
+        return 'GPT-3.5 Turbo';
+      case 'claude-3-5-sonnet-20241022':
+        return 'Claude 3.5 Sonnet';
+      case 'claude-3-haiku-20240307':
+        return 'Claude 3 Haiku';
+      case 'gemini-2.0-flash-exp':
+        return 'Gemini 2.0 Flash';
+      case 'gemini-1.5-pro':
+        return 'Gemini 1.5 Pro';
+      default:
+        return modelId.replaceAll('-', ' ').split(' ')
+            .map((word) => word[0].toUpperCase() + word.substring(1))
+            .join(' ');
     }
   }
 
   String get defaultModelId {
-    if (!_isInitialized) return 'gemini-2.5-flash';
-    return _config!['default_model_id'] ?? 'gemini-2.5-flash';
+    if (!_isInitialized || _availableModels.isEmpty) return 'gpt-4o-mini';
+    return _selectedModelId;
   }
 
   List<ChatModelConfig> get chatModels {
-    if (!_isInitialized) return [];
-    final List<dynamic> models = _config!['chat_models'];
-    return models.map((json) => ChatModelConfig.fromJson(json, _config!)).toList();
+    return _availableModels;
   }
 
   ChatModelConfig? getModelConfigById(String modelId) {
-    return chatModels.firstWhere((m) => m.modelId == modelId, orElse: () => chatModels.first);
+    if (_availableModels.isEmpty) return null;
+    try {
+      return _availableModels.firstWhere((m) => m.modelId == modelId);
+    } catch (e) {
+      return _availableModels.first;
+    }
   }
 
-  SpecialModelConfig get visionModel => SpecialModelConfig.fromJson(_config!['special_models']['vision'], _config!);
-  SpecialModelConfig get presentationModel => SpecialModelConfig.fromJson(_config!['special_models']['presentation'], _config!);
-  SpecialModelConfig get thinkingModeModel => SpecialModelConfig.fromJson(_config!['special_models']['thinking_mode'], _config!);
+  // Unified model usage - use the same selected model for all tasks
+  ChatModelConfig get selectedModel {
+    return getModelConfigById(_selectedModelId) ?? _availableModels.first;
+  }
 
-  String get braveSearchApiKey => _config!['other_apis']['brave_search']['apiKey'];
-  String get braveSearchUrl => _config!['other_apis']['brave_search']['apiUrl'];
-  Map<String, dynamic> get imageGenerationConfig => _config!['other_apis']['image_generation'];
-  String get defaultImageModelId => imageGenerationConfig['default_model_id'] ?? '';
+  // Set the selected model
+  void setSelectedModel(String modelId) {
+    _selectedModelId = modelId;
+    debugPrint("Selected model changed to: $modelId");
+  }
+
+  // Legacy compatibility methods - now use the same selected model
+  ChatModelConfig get visionModel => selectedModel;
+  ChatModelConfig get presentationModel => selectedModel;
+  ChatModelConfig get thinkingModeModel => selectedModel;
+
+  // API endpoints
+  String get apiBaseUrl => _apiBaseUrl;
+  String get apiKey => _apiKey;
+
+  // Search API configuration (placeholder - update with actual keys)
+  String get braveSearchApiKey => 'your-brave-search-key';
+  String get braveSearchUrl => 'https://api.search.brave.com/res/v1/web/search';
+  
+  // Image generation configuration
+  Map<String, dynamic> get imageGenerationConfig => {
+    'default_model_id': 'dall-e-3',
+    'api_url': 'https://api.openai.com/v1/images/generations',
+    'api_key': 'your-image-api-key'
+  };
+  String get defaultImageModelId => imageGenerationConfig['default_model_id'] ?? 'dall-e-3';
 }
 
 class ChatModelConfig {
@@ -78,47 +175,15 @@ class ChatModelConfig {
     this.apiUrl,
   });
 
-  factory ChatModelConfig.fromJson(Map<String, dynamic> json, Map<String, dynamic> fullConfig) {
-    String providerKey = json['provider'];
-    String? apiKey = fullConfig['api_providers'][providerKey]?['apiKey'];
-
+  factory ChatModelConfig.fromJson(Map<String, dynamic> json) {
     return ChatModelConfig(
-      displayName: json['displayName'],
-      modelId: json['modelId'],
-      provider: providerKey,
-      type: json['type'],
-      status: json['status'],
-      description: json['description'] ?? '',
-      apiKey: apiKey,
-      apiUrl: json['apiUrl'],
-    );
-  }
-}
-
-class SpecialModelConfig {
-  final String modelId;
-  final String provider;
-  final String? type;
-  final String? apiKey;
-  final String? apiUrl;
-
-  SpecialModelConfig({
-    required this.modelId,
-    required this.provider,
-    this.type,
-    this.apiKey,
-    this.apiUrl,
-  });
-
-  factory SpecialModelConfig.fromJson(Map<String, dynamic> json, Map<String, dynamic> fullConfig) {
-    String providerKey = json['provider'];
-    String? apiKey = fullConfig['api_providers'][providerKey]?['apiKey'];
-
-    return SpecialModelConfig(
-      modelId: json['modelId'],
-      provider: providerKey,
-      type: json['type'],
-      apiKey: apiKey,
+      displayName: json['displayName'] ?? json['id'] ?? 'Unknown Model',
+      modelId: json['modelId'] ?? json['id'] ?? 'gpt-4o-mini',
+      provider: json['provider'] ?? 'ahamai',
+      type: json['type'] ?? 'chat',
+      status: json['status'] ?? 'active',
+      description: json['description'] ?? 'AI Model',
+      apiKey: json['apiKey'],
       apiUrl: json['apiUrl'],
     );
   }
@@ -133,78 +198,74 @@ class ImageModelConfig {
 
   factory ImageModelConfig.fromJson(Map<String, dynamic> json) {
     return ImageModelConfig(
-      displayName: json['displayName'],
-      modelId: json['modelId'],
-      provider: json['provider'],
+      displayName: json['displayName'] ?? json['id'] ?? 'Unknown Model',
+      modelId: json['modelId'] ?? json['id'] ?? 'dall-e-3',
+      provider: json['provider'] ?? 'openai',
     );
   }
 }
 
 class ImageApi {
   static Map<String, dynamic> get _config => ApiConfigService.instance.imageGenerationConfig;
-  static Map<String, dynamic>? get _fullConfig => ApiConfigService.instance._config;
-
 
   static Future<List<ImageModelConfig>> fetchModels() async {
     try {
-      final List<dynamic> modelsJson = _config['models'];
-      return modelsJson
-        .where((m) => m['visible'] == true)
-        .map((m) => ImageModelConfig.fromJson(m))
-        .toList();
+      // Return a simple list of available image models
+      return [
+        ImageModelConfig(
+          displayName: 'DALL-E 3',
+          modelId: 'dall-e-3',
+          provider: 'openai',
+        ),
+        ImageModelConfig(
+          displayName: 'DALL-E 2',
+          modelId: 'dall-e-2',
+          provider: 'openai',
+        ),
+      ];
     } catch (e) {
       debugPrint("Error fetching image models: $e");
       return [];
     }
   }
 
-  static Future<String> generateImage(String prompt, String modelId) async {
-    final List<dynamic> models = _config['models'];
-    final modelConfig = models.firstWhere((m) => m['modelId'] == modelId, orElse: () => null);
+  static Future<String?> generateImage({
+    required String prompt,
+    required String modelId,
+    String size = "1024x1024",
+    int n = 1,
+  }) async {
+    try {
+      final apiUrl = _config['api_url'] ?? 'https://api.openai.com/v1/images/generations';
+      final apiKey = _config['api_key'] ?? 'your-image-api-key';
 
-    if (modelConfig == null) {
-      throw Exception("Model $modelId not found in config.");
-    }
-
-    final String provider = modelConfig['provider'];
-
-    if (provider == 'pollinations') {
-      final baseUrl = _config['providers']['pollinations']['baseUrl'];
-      final encodedPrompt = Uri.encodeComponent(prompt);
-      var url = '$baseUrl/prompt/$encodedPrompt?nologo=true&width=512&height=512';
-      if (modelId != 'flux') {
-        url += '&model=${Uri.encodeComponent(modelId)}';
-      }
-      return url;
-    } else if (provider == 'infip') {
-      final providerConfig = _config['providers']['infip'];
-      final apiUrl = providerConfig['apiUrl'];
-      final apiKey = _fullConfig!['api_providers']['infip']['apiKey'];
+      final requestData = {
+        "prompt": prompt,
+        "model": modelId,
+        "n": n,
+        "size": size,
+      };
 
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $apiKey',
           'Content-Type': 'application/json',
-          'accept': 'application/json',
         },
-        body: jsonEncode({
-          'model': modelId,
-          'prompt': prompt,
-          'n': 1,
-          'response_format': 'url',
-          'size': '1024x1024',
-        }),
+        body: jsonEncode(requestData),
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['data'][0]['url'];
+        final responseData = jsonDecode(response.body);
+        final imageUrl = responseData['data']?[0]?['url'];
+        return imageUrl;
       } else {
-        throw Exception('Failed to generate image with infip: ${response.statusCode} ${response.body}');
+        debugPrint("Image generation error: ${response.statusCode} - ${response.body}");
+        return null;
       }
-    } else {
-      throw Exception("Unsupported image provider: $provider");
+    } catch (e) {
+      debugPrint("Error in generateImage: $e");
+      return null;
     }
   }
 }

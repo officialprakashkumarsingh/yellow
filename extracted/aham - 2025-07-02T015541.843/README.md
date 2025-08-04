@@ -1,6 +1,6 @@
-# Aham
+# AhamAI
 
-A new Flutter project created with FlutLab - https://flutlab.io
+AhamAI - Your Intelligent AI Assistant created with FlutLab - https://flutlab.io
 
 ## Getting Started
 

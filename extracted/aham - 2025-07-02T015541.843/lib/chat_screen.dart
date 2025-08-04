@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:aham/openai_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,7 +19,7 @@ import 'package:aham/theme.dart';
 import 'package:aham/ui_widgets.dart';
 import 'package:aham/web_search.dart';
 import 'package:aham/tools.dart';
-import 'package:aham/chat_mode_logic.dart'; // Import the new logic file
+import 'package:aham/chat_mode_logic.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +53,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   
   ChatMode _chatMode = ChatMode.auto;
 
-  GenerativeModel? _geminiVisionModel;
   late String _selectedChatModelId;
   bool _isModelSetupComplete = false;
 
@@ -158,10 +157,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
     _selectedChatModelId = prefs.getString('chat_model') ?? ApiConfigService.instance.defaultModelId;
 
-    final visionConfig = ApiConfigService.instance.visionModel;
-    if (visionConfig.apiKey != null) {
-       _geminiVisionModel = GenerativeModel(model: visionConfig.modelId, apiKey: visionConfig.apiKey!);
-    }
+    // Vision capabilities are now handled by the unified OpenAI service
+    // No separate model initialization needed
 
     if (mounted) setState(() {});
   }
@@ -278,10 +275,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _updateChatInfo(true, false);
 
     try {
-      final content = [Content.multi([TextPart(input), DataPart('image/jpeg', imageBytes)])];
-      final responseStream = _geminiVisionModel!.generateContentStream(content);
+      // Use OpenAI service for vision capabilities
+      final responseStream = await OpenAIService.instance.streamChatCompletion(
+        prompt: input,
+        messages: _messages.take(_messages.length - 2).toList(), // Exclude the last two messages (user and empty assistant)
+        imageBytes: imageBytes,
+        modelId: _selectedChatModelId,
+      );
+      
       _streamSubscription = responseStream.listen(
-        (chunk) => _handleStreamChunk(chunk.text ?? ''),
+        (chunk) => _handleStreamChunk(chunk),
         onDone: _onStreamingDone,
         onError: _onStreamingError,
         cancelOnError: true,
@@ -337,8 +340,8 @@ Based on the context above, answer the following prompt: $input""";
     _smoothScrollToBottom();
 
     final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
-    if (modelConfig == null || modelConfig.type != 'openai_compatible') {
-      _onStreamingError("The selected mode requires an OpenAI-compatible agent model. Please choose one from the settings.");
+    if (modelConfig == null) {
+      _onStreamingError("Model configuration not found. Please check your settings.");
       return;
     }
     
@@ -366,13 +369,9 @@ Based on the context above, answer the following prompt: $input""";
     }
 
     try {
-      final config = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
-      if (config == null || config.type != 'openai_compatible' || config.apiUrl == null || config.apiKey == null) {
-        _onStreamingError('The selected model is not a compatible agent or is missing configuration.');
-        return;
-      }
+      final config = ApiConfigService.instance.selectedModel;
       
-      String apiUrl = overrideApiUrl ?? config.apiUrl!;
+      String apiUrl = overrideApiUrl ?? '${config.apiUrl}/v1/chat/completions';
       String apiKey = config.apiKey!;
       String modelName = config.modelId;
       

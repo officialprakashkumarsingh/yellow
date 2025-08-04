@@ -43,8 +43,8 @@ class CreditService {
 
   Future<void> initialize() async {
     await Supabase.initialize(
-      url: 'https://ejphzjaavjivzdkyjrua.supabase.co',
-      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqcGh6amFhdmppdnpka3lqcnVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTExMDkwMzQsImV4cCI6MjA2NjY4NTAzNH0.AjDs1ng9_vNcaE_o9GzRYhwIDeJxpkrhTdQrM4wL6k0',
+      url: 'https://oaoagwlcxfagzxckkxdd.supabase.co',
+      anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hb2Fnd2xjeGZhZ3p4Y2treGRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzMDgyOTQsImV4cCI6MjA2OTg4NDI5NH0.bdHmfBnCFK4taJ18Q8ZP-ItXNEnUuRhUtLT_1fsOino',
     );
   }
 
