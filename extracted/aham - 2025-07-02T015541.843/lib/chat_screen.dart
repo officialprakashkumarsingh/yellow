@@ -19,12 +19,12 @@ import 'package:ahamai/models.dart';
 import 'package:ahamai/theme.dart';
 import 'package:ahamai/ui_widgets.dart';
 import 'package:ahamai/web_search.dart';
-
 import 'package:ahamai/chat_mode_logic.dart';
-import 'package:ahamai/openai_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+const kMessageTextStyle = TextStyle(fontSize: 15.5, height: 1.45);
 
 class ChatScreen extends StatefulWidget {
   final List<ChatMessage>? initialMessages;
@@ -53,8 +53,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _isStoppedByUser = false;
   bool _isSending = false;
   
-  // Chat mode switching removed - AI will auto-detect the appropriate mode
-
   late String _selectedChatModelId;
   bool _isModelSetupComplete = false;
   
@@ -66,23 +64,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   StreamSubscription? _streamSubscription;
   http.Client? _httpClient;
 
+  List<SearchResult>? _lastSearchResults;
+  bool _showScrollButton = false;
+  bool _isProcessingFile = false;
+  XFile? _attachedImage;
+  dynamic _attachment;
+
   late String _chatId;
-  late bool _isPinned;
   late String _chatTitle;
   late String _category;
-  List<SearchResult>? _lastSearchResults;
-
-  ChatAttachment? _attachment;
-  XFile? _attachedImage;
-  bool _isProcessingFile = false;
-
-  bool _showScrollButton = false;
-
-  bool _didRedirectForTool = false;
-  String? _lastCreatedImageUrl;
-  String? _lastCreatedFilePath;
-
-
+  late bool _isPinned;
 
   @override
   void initState() {
@@ -111,29 +102,28 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
 
     _scrollController.addListener(() {
-      final isAtBottom = _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200;
-      if (!isAtBottom) {
-        if (!_showScrollButton) setState(() => _showScrollButton = true);
-      } else {
-        if (_showScrollButton) setState(() => _showScrollButton = false);
+      if (_scrollController.hasClients) {
+        final isAtBottom = _scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 100;
+        if (_showScrollButton && isAtBottom) {
+          setState(() => _showScrollButton = false);
+        } else if (!_showScrollButton && !isAtBottom && _scrollController.position.pixels > 200) {
+          setState(() => _showScrollButton = true);
+        }
       }
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed && _didRedirectForTool) {
-      setState(() {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      final hasContent = _messages.any((msg) => msg.role == 'user' && msg.text.trim().isNotEmpty);
+      if (hasContent) {
         _addMessageToList(ChatMessage(
-          role: 'model',
-          text: 'External action completed.',
-          type: MessageType.text,
+          role: 'system',
+          text: '[Chat saved automatically]',
           timestamp: DateTime.now(),
         ));
-        _didRedirectForTool = false;
-      });
-      _updateChatInfo(false, false);
+      }
     }
   }
 
@@ -164,9 +154,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         await ApiConfigService.instance.initialize();
     }
     _selectedChatModelId = prefs.getString('chat_model') ?? ApiConfigService.instance.defaultModelId;
-
-    // Vision capabilities are now handled by the unified OpenAI service
-    // No separate model initialization needed
 
     if (mounted) setState(() {});
   }
@@ -237,19 +224,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _addMessageToList(ChatMessage message) {
     if (!mounted) return;
 
-    if ((message.type == MessageType.image && message.imageUrl != null) || (message.type == MessageType.file && message.filePath != null)) {
-      final lastMessageIndex = _messages.lastIndexWhere((m) => m.role == 'model');
-      if (lastMessageIndex != -1) {
-        final lastMessage = _messages[lastMessageIndex];
-        if (lastMessage.type == message.type && lastMessage.imageUrl == null && lastMessage.filePath == null) {
-          setState(() {
-            _messages[lastMessageIndex] = message;
-          });
-          return;
-        }
-      }
-    }
-    
     final int index = _messages.length;
     _messages.add(message);
     _listKey.currentState?.insertItem(index, duration: const Duration(milliseconds: 300));
@@ -271,24 +245,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (!_isModelSetupComplete || _isStreaming || _isSending) return;
     if (input.trim().isEmpty && _attachment == null && _attachedImage == null) return;
     
-    setState(() => _isSending = true);
-    
-    _httpClient = http.Client();
+    // Credit system removed - no longer needed
 
-    try {
-      // Credit system removed - no longer needed
-  
-      final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
-          if (_attachedImage != null) {
-        _httpClient?.close();
-        await _sendVisionMessage(input, _attachedImage!);
-      } else {
-        await _sendTextMessage(input);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSending = false);
-      }
+    final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
+        if (_attachedImage != null) {
+      _httpClient?.close();
+      await _sendVisionMessage(input, _attachedImage!);
+    } else {
+      await _sendTextMessage(input);
     }
   }
 
@@ -315,26 +279,33 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _sendVisionMessage(String input, XFile imageFile) async {
-    // Vision capabilities are now handled by OpenAI service
-    _isStoppedByUser = false;
-    _lastSearchResults = null;
-    final imageBytes = await imageFile.readAsBytes();
-    final userMessage = ChatMessage(role: 'user', text: input, imageBytes: imageBytes, timestamp: DateTime.now());
-
+    final userMessage = ChatMessage(role: 'user', text: input, timestamp: DateTime.now(), imageBytes: await imageFile.readAsBytes());
+    _addMessageToList(userMessage);
     setState(() { _isStreaming = true; _attachedImage = null; });
 
-    _addMessageToList(userMessage);
-    _addMessageToList(ChatMessage(role: 'model', text: '', imageBytes: imageBytes, timestamp: DateTime.now()));
-    _controller.clear();
-    _smoothScrollToBottom();
-    _updateChatInfo(true, false);
+    final List<ChatMessage> historyForAI = _messages.where((msg) => msg.role != 'system').take(_messages.length - 1).toList();
+
+    String finalInputForAI = input;
+    if (_attachment != null) {
+      finalInputForAI = """CONTEXT FROM THE FILE '${_attachment!.fileName}':
+---
+${_attachment!.content}
+---
+Based on the context above, answer the following prompt: $input""";
+    } else if (_attachedImage != null) {
+      finalInputForAI = "[An image has been uploaded by the user. If the prompt is a request to modify this image, use the `image_editing` tool. If the prompt is asking to describe or analyze the image, state that you need a Vision-enabled model for that task, as your current capability is text and tool-based.]\n\nUser Prompt: $input";
+    }
+
+         _addMessageToList(ChatMessage(role: 'model', text: '', imageBytes: await imageFile.readAsBytes(), timestamp: DateTime.now()));
 
     try {
-      // Use OpenAI service for vision capabilities
+      final modeResult = await ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto).process();
+      
       final responseStream = await OpenAIService.instance.streamChatCompletion(
-        prompt: input,
-        messages: _messages.take(_messages.length - 2).toList(), // Exclude the last two messages (user and empty assistant)
-        imageBytes: imageBytes,
+        prompt: finalInputForAI,
+        messages: historyForAI,
+        systemPrompt: modeResult.systemPrompt,
+                 imageBytes: await imageFile.readAsBytes(),
         modelId: _selectedChatModelId,
       );
       
@@ -368,49 +339,23 @@ Based on the context above, answer the following prompt: $input""";
       finalInputForAI = "[An image has been uploaded by the user. If the prompt is a request to modify this image, use the `image_editing` tool. If the prompt is asking to describe or analyze the image, state that you need a Vision-enabled model for that task, as your current capability is text and tool-based.]\n\nUser Prompt: $input";
     }
 
-    final userMessage = ChatMessage(
-        role: 'user',
-        text: input,
-        imageBytes: _attachedImage != null ? await _attachedImage!.readAsBytes() : null,
-        attachedFileName: _attachment?.fileName,
-        attachedContainedFiles: _attachment?.containedFileNames,
-        timestamp: DateTime.now());
+    _addMessageToList(ChatMessage(role: 'user', text: input, timestamp: DateTime.now(), attachedFileName: _attachment?.fileName, imageBytes: _attachedImage != null ? await _attachedImage!.readAsBytes() : null));
 
+    _controller.clear();
     setState(() {
       _isStreaming = true;
-      if (_chatTitle == "New Chat" || _chatTitle.trim().isEmpty) {
-        _chatTitle = userMessage.text.length > 30 ? '${userMessage.text.substring(0, 30)}...' : userMessage.text;
-      }
-      if (_messages.isEmpty) _category = "General";
       _attachment = null;
-      _attachedImage = null; 
+      _attachedImage = null;
     });
 
-    _addMessageToList(userMessage);
-    _controller.clear();
-    _smoothScrollToBottom();
-    _updateChatInfo(true, false);
+         _addMessageToList(ChatMessage(role: 'model', text: '', timestamp: DateTime.now()));
 
-    _addMessageToList(ChatMessage(role: 'model', text: '', attachedFileName: userMessage.attachedFileName, timestamp: DateTime.now()));
-    _smoothScrollToBottom();
-
-    final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
-    if (modelConfig == null) {
-      _onStreamingError("Model configuration not found. Please check your settings.");
-      return;
-    }
-    
-    // Use auto mode for all requests - AI will determine the appropriate handling
-    final handler = ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto);
-    final modeResult = await handler.process();
-
-    _lastSearchResults = modeResult.searchResults;
-    
-    // Use the OpenAI service for streaming instead of custom implementation
     try {
+      final modeResult = await ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto).process();
+      
       final responseStream = await OpenAIService.instance.streamChatCompletion(
-        prompt: modeResult.finalInput,
-        messages: _messages.take(_messages.length - 2).toList(), // Exclude the last two messages (user and empty assistant)
+        prompt: finalInputForAI,
+        messages: _messages.where((msg) => msg.role != 'system').take(_messages.length - 2).toList(), // Exclude the last two messages (user and empty assistant)
         systemPrompt: modeResult.systemPrompt,
         modelId: _selectedChatModelId,
       );
@@ -421,298 +366,9 @@ Based on the context above, answer the following prompt: $input""";
         onError: _onStreamingError,
         cancelOnError: true,
       );
-    } catch (e) {
-      _onStreamingError('Error: $e');
-    }
-  }
-
-  Future<void> _sendOpenAICompatibleStream(String input, {String? toolExecutionReport, String? overrideApiUrl, int redirectCount = 0, required String systemPrompt}) async {
-    if (redirectCount > 5) {
-      _onStreamingError("Too many redirects. Aborting request.");
-      return;
-    }
-    
-    if (_httpClient == null) {
-      _onStreamingError("An internal error occurred: HTTP client was not initialized.");
-      return;
-    }
-
-    try {
-      final config = ApiConfigService.instance.selectedModel;
-      
-      String apiUrl = overrideApiUrl ?? '${config.apiUrl}/v1/chat/completions';
-      String apiKey = config.apiKey!;
-      String modelName = config.modelId;
-      
-      String finalSystemPrompt = systemPrompt;
-
-      if(toolExecutionReport != null && toolExecutionReport.isNotEmpty) {
-        final agentSystemPrompt = await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt);
-        finalSystemPrompt = """$agentSystemPrompt
----
-AGENT EXECUTION REPORT:
-$toolExecutionReport
----
-**CRITICAL INSTRUCTION:** The user's request has been fulfilled by the tools. Your ONLY task now is to synthesize the results from the report above into a final, comprehensive, and user-friendly answer. 
-**DO NOT** output any more tool calls or JSON. Your response must be the final answer for the user in plain text or Markdown.
-Based on the successful execution of your plan, provide the final synthesized answer to the user's original request: $input""";
-      }
-
-      final history = _messages.map((m) => {"role": m.role == 'user' ? "user" : "assistant", "content": m.text}).toList();
-      history.removeLast();
-      history.removeLast();
-      
-      List<Map<String, dynamic>> messagesForApi = [
-        {"role": "system", "content": finalSystemPrompt},
-        ...history.map((m) => m),
-        {"role": "user", "content": input}
-      ];
-
-      final request = http.Request('POST', Uri.parse(apiUrl))
-        ..headers.addAll({
-          'Content-Type': 'application/json; charset=UTF-8',
-          'Authorization': 'Bearer $apiKey'
-        })
-        ..encoding = utf8
-        ..body = jsonEncode({
-          'model': modelName, 
-          'messages': messagesForApi, 
-          'stream': true,
-          'max_tokens': 4096,
-          'temperature': 0.7, 
-        });
-
-      final response = await _httpClient!.send(request).timeout(const Duration(minutes: 3));
-
-      if ([301, 302, 307, 308].contains(response.statusCode)) {
-        final location = response.headers['location'];
-        if (location != null) {
-          await _sendOpenAICompatibleStream(input, toolExecutionReport: toolExecutionReport, overrideApiUrl: location, redirectCount: redirectCount + 1, systemPrompt: systemPrompt);
-        } else {
-          _onStreamingError("HTTP Redirect (Code: ${response.statusCode}) with no location header.");
-        }
-        return;
-      }
-
-      if (response.statusCode != 200) {
-        final errorBody = await response.stream.bytesToString();
-        
-        // Handle specific error codes
-        if (response.statusCode == 523) {
-          _onStreamingError("Server temporarily unavailable (523). Please try again in a moment.");
-          return;
-        }
-        String errorMessage = "API Error (${response.statusCode})";
-        try {
-          final decodedError = jsonDecode(errorBody);
-          final message = decodedError['error']?['message'] ?? decodedError['detail'] ?? 'No details provided.';
-          errorMessage += "\nDetails: $message";
-        } catch (e) {
-          errorMessage += "\nDetails: ${errorBody.substring(0, (errorBody.length > 200) ? 200 : errorBody.length)}...";
-        }
-        _onStreamingError(errorMessage);
-        return;
-      }
-
-      String buffer = '';
-      _streamSubscription = response.stream.transform(utf8.decoder).listen(
-        (chunk) {
-          if (_isStoppedByUser) { _streamSubscription?.cancel(); return; }
-          buffer += chunk;
-          while (true) {
-            final lineEnd = buffer.indexOf('\n');
-            if (lineEnd == -1) break;
-            final line = buffer.substring(0, lineEnd).trim();
-            buffer = buffer.substring(lineEnd + 1);
-            if (line.startsWith('data: ')) {
-              final data = line.substring(6);
-              if (data == '[DONE]') return;
-              try {
-                final parsed = jsonDecode(data);
-                final content = parsed['choices']?[0]?['delta']?['content'];
-                if (content != null) {
-                  _handleStreamChunk(content);
-                }
-              } catch (e) { /* Ignore */ }
-            }
-          }
-        },
-        onDone: () {
-          if (buffer.isNotEmpty && !_isStoppedByUser) {
-            try {
-               final lines = buffer.split('\n').where((l) => l.startsWith('data: '));
-               for (final line in lines) {
-                 final data = line.substring(6).trim();
-                 if (data.isNotEmpty && data != '[DONE]') {
-                   final parsed = jsonDecode(data);
-                   final content = parsed['choices']?[0]?['delta']?['content'];
-                   if (content != null) {
-                    _handleStreamChunk(content);
-                   }
-                 }
-               }
-            } catch(e) {
-              print("Error parsing final buffer chunk: $e");
-            }
-          }
-          _onStreamingDone();
-        },
-        onError: _onStreamingError,
-        cancelOnError: true,
-      );
-    } on TimeoutException catch (_) {
-      _onStreamingError("The request timed out. The server took too long to respond. Please try a simpler request.");
-    } on http.ClientException catch (e) {
+    } catch(e) {
       _onStreamingError(e);
-    } catch (e) {
-      _onStreamingError("An unexpected error occurred: $e");
     }
-  }
-
-  void _onStreamingDone() {
-    _finalizeStream();
-  }
-
-  void _onStreamingError(dynamic error) {
-    _finalizeStream(error: error);
-  }
-
-    List<String> stepResults = [];
-    var finalReport = StringBuffer("Autonomous Agent Execution Report:\n\n");
-    String? currentUrl;
-
-    for (int i = 0; i < plan.length; i++) {
-      var step = plan[i];
-      if (step is! Map<String, dynamic>) {
-        stepResults.add("Error: Step ${i+1} was not a valid object.");
-        continue;
-      }
-      
-      if (step['url'] is String) currentUrl = step['url'];
-
-      String stepJson = jsonEncode(step);
-      for (int j = 0; j < stepResults.length; j++) {
-        stepJson = stepJson.replaceAll('"{step${j+1}_result}"', jsonEncode(stepResults[j]));
-      }
-      String? lastAssetPath = _lastCreatedImageUrl ?? _lastCreatedFilePath;
-      if (lastAssetPath != null) {
-        stepJson = stepJson.replaceAll('"{last_asset}"', jsonEncode(lastAssetPath));
-      }
-      for (final entry in _agentMemory.entries) {
-        stepJson = stepJson.replaceAll('"{memory:${entry.key}}"', jsonEncode(entry.value));
-      }
-      final hydratedStep = jsonDecode(stepJson) as Map<String, dynamic>;
-
-      final tool = hydratedStep['tool'] as String?;
-      if (tool == null) {
-          String errorResult = "Agent Error: Missing 'tool' in step ${i+1}.";
-          _addAgentStatusMessage(errorResult, Icons.error_outline_rounded);
-          stepResults.add(errorResult);
-          finalReport.writeln("--- Step ${i+1}: FAILED ---\nResult: $errorResult\n");
-          continue;
-      }
-
-      _addAgentStatusMessage("[Executing: $tool]", Icons.play_arrow_rounded);
-      
-      final currentStepResult = await toolExecutor.executeTool(hydratedStep, currentUrl: currentUrl);
-
-      stepResults.add(currentStepResult);
-      final icon = currentStepResult.startsWith('[SCRAPED_CONTENT_START]') ? Icons.article_outlined : Icons.check_circle_outline;
-      _addAgentStatusMessage("[Result]\n$currentStepResult", icon);
-      finalReport.writeln("--- Step ${i+1}: $tool ---\nResult: $currentStepResult\n");
-      
-      if(currentStepResult.startsWith("Agent Error:")) {
-        break; 
-      }
-    }
-
-    _addMessageToList(ChatMessage(role: 'model', text: '', timestamp: DateTime.now()));
-    _smoothScrollToBottom();
-
-          await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: finalReport.toString(), systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt));
-  }
-  
-  Future<bool> _handleToolCall(String responseText, String originalUserPrompt) async {
-          final handler = ChatModeHandler(prompt: originalUserPrompt, mode: ChatMode.auto);
-    final modeResult = await handler.process();
-    if (!modeResult.allowToolUse) return false;
-
-    String? jsonString;
-    final jsonRegex = RegExp(r"```json\s*([\s\S]*?)\s*```|({[\s\S]*})");
-    final match = jsonRegex.firstMatch(responseText);
-
-    if (match != null) {
-      jsonString = match.group(1) ?? match.group(0);
-    }
-    
-    if (jsonString != null && jsonString.trim().isNotEmpty) {
-      try {
-        final decoded = jsonDecode(jsonString.trim());
-        if (decoded is Map<String, dynamic>) {
-          if (decoded.containsKey('plan') && decoded.containsKey('thought')) {
-            await _executeAgentPlan(originalUserPrompt, decoded);
-            return true;
-          } else if (decoded.containsKey('tool')) {
-            final userMessage = _messages.lastWhere((m) => m.role == 'user');
-            final userImage = userMessage.imageBytes != null ? XFile.fromData(userMessage.imageBytes!, name: 'user_image.jpg') : null;
-
-            final toolExecutor = ToolExecutor(
-                context: context,
-                onAddMessage: _addMessageToList,
-                onUpdateAssets: (imageUrl, filePath) {
-                  if (imageUrl != null) _lastCreatedImageUrl = imageUrl;
-                  if (filePath != null) _lastCreatedFilePath = filePath;
-                },
-                agentMemory: _agentMemory,
-                userImage: userImage);
-
-            _removeMessagesFrom(_messages.length - 1);
-            final tool = decoded['tool'] as String;
-            _addAgentStatusMessage("[Executing: $tool]", Icons.play_arrow_rounded);
-            final result = await toolExecutor.executeTool(decoded);
-            
-            if (tool != 'list_deployed_sites' && tool != 'image_editing' && tool != 'image_generation') {
-              _addAgentStatusMessage("[Result]\n$result", Icons.check_circle_outline);
-            }
-            await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: "--- Step 1: $tool ---\nResult: $result\n", systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt));
-            
-            return true;
-          }
-        }
-      } catch (e) {
-        print("JSON decoding failed: $e. Checking for plain text agent response.");
-      }
-    }
-
-    if (responseText.contains('[Thought]') || responseText.contains('[Critique]')) {
-       _removeMessagesFrom(_messages.length - 1);
-       final parts = responseText.split(RegExp(r'(\[Thought\]|\[Critique\])')).where((s) => s.isNotEmpty).toList();
-       String finalMessage = '';
-       
-       for(int i = 0; i < parts.length; i++) {
-         String part = parts[i].trim();
-         if(part.toLowerCase() == '[thought]') {
-           if(i + 1 < parts.length) {
-             _addAgentStatusMessage('[Thought]\n' + parts[i+1].trim(), CupertinoIcons.lightbulb);
-             i++;
-           }
-         } else if (part.toLowerCase() == '[critique]') {
-            if(i + 1 < parts.length) {
-              _addAgentStatusMessage('[Critique]\n' + parts[i+1].trim(), Icons.gavel_rounded);
-              i++;
-            }
-         } else {
-           finalMessage += part + '\n';
-         }
-       }
-       
-       if (finalMessage.trim().isNotEmpty) {
-         _addMessageToList(ChatMessage(role: 'model', text: finalMessage.trim(), timestamp: DateTime.now()));
-       }
-       return true;
-    }
-
-    return false;
   }
 
   void _onStreamingDone() {
@@ -744,50 +400,44 @@ Based on the successful execution of your plan, provide the final synthesized an
       _smoothScrollToBottom();
       return;
     }
-    
+
     if (_messages.isEmpty || _messages.last.role != 'model') {
        setState(() { _isStreaming = false; });
        _httpClient?.close();
        _httpClient = null;
-       _updateChatInfo(false, false);
        return;
     }
 
     final lastMessageText = _messages.last.text.trim();
     final lastUserMessage = _messages.lastWhere((m) => m.role == 'user', orElse: () => ChatMessage(role: 'user', text: '', timestamp: DateTime.now()));
 
-    bool toolWasCalled = await _handleToolCall(lastMessageText, lastUserMessage.text);
-    
-    if (!mounted) {
-      if (!toolWasCalled) _httpClient?.close();
-      return;
-    }
-
-    if (toolWasCalled) {
-      return;
-    }
+         if (!mounted) {
+       _httpClient?.close();
+       return;
+     }
 
     _httpClient?.close();
     _httpClient = null;
 
     if (lastMessageText.isEmpty) {
       _removeMessagesFrom(_messages.length - 1);
-    } else {
+      
       final lastMessage = _messages.last;
       final finalMessage = ChatMessage(
-          role: lastMessage.role,
-          text: lastMessageText,
-          searchResults: _lastSearchResults,
-          timestamp: lastMessage.timestamp,
-          type: lastMessage.type,
+        role: lastMessage.role,
+        text: "I apologize, but I couldn't generate a response. Please try again.",
+        searchResults: _lastSearchResults,
+        timestamp: lastMessage.timestamp,
+        type: lastMessage.type,
       );
       setState(() => _messages[_messages.length - 1] = finalMessage);
     }
-    
+
     setState(() {
       _isStreaming = false;
       _isStoppedByUser = false; 
     });
+
     _updateChatInfo(false, false);
     _smoothScrollToBottom();
   }
@@ -801,7 +451,6 @@ Based on the successful execution of your plan, provide the final synthesized an
     if (_isStoppedByUser) return;
     _isStoppedByUser = true;
     _streamSubscription?.cancel();
-    _finalizeStream(error: "Response generation stopped.");
   }
 
   void _smoothScrollToBottom() {
@@ -812,7 +461,7 @@ Based on the successful execution of your plan, provide the final synthesized an
           _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
             duration: const Duration(milliseconds: 300),
-            curve: Curves.linear,
+            curve: Curves.easeOut,
           );
         }
       }
@@ -820,7 +469,7 @@ Based on the successful execution of your plan, provide the final synthesized an
   }
 
   void _forceScrollToBottom() {
-     WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -835,25 +484,12 @@ Based on the successful execution of your plan, provide the final synthesized an
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade600 : null,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 110, left: 16, right: 16),
-        content: GlassmorphismPanel(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              children: [
-                Icon(
-                  isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
-                  color: isError ? Colors.redAccent : Colors.greenAccent,
-                ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(message)),
-              ],
-            ),
-          ),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -866,27 +502,27 @@ Based on the successful execution of your plan, provide the final synthesized an
   Future<void> _regenerateResponse(int userMessageIndex) async {
     if (userMessageIndex < 0 || userMessageIndex >= _messages.length) return;
     final userMessage = _messages[userMessageIndex];
-    if (userMessage.role != 'user') return;
-
+    
     _removeMessagesFrom(userMessageIndex + 1);
     
-    final messageText = userMessage.text;
-    final messageImageBytes = userMessage.imageBytes;
-
     setState(() => _isSending = true);
+    
     try {
-            // Credit system removed - no longer needed
-
-        if (messageImageBytes != null) {
-          _attachedImage = XFile.fromData(messageImageBytes, name: 'image.jpg');
-        }
-
+      if (userMessage.imageBytes != null) {
+        final messageImageBytes = userMessage.imageBytes!;
+        final messageText = userMessage.text;
+        _attachedImage = XFile.fromData(messageImageBytes, name: 'image.jpg');
+        
         await _sendMessage(messageText);
-
-    } finally {
+      } else {
         if(mounted) {
             setState(() => _isSending = false);
         }
+      }
+    } catch (e) {
+      if(mounted) {
+        setState(() => _isSending = false);
+      }
     }
   }
 
@@ -896,67 +532,56 @@ Based on the successful execution of your plan, provide the final synthesized an
       backgroundColor: Colors.transparent,
       builder: (context) => GlassmorphismPanel(
         isBottomSheet: true,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(leading: const Icon(Icons.content_copy_outlined), title: const Text('Copy Message'), onTap: () { Navigator.pop(context); _copyToClipboard(message.text); }),
-              ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Edit and Resend'), onTap: () { Navigator.pop(context); setState(() { _controller.text = message.text; _removeMessagesFrom(index); _stopStreaming(); }); }),
-              SizedBox(height: MediaQuery.of(context).padding.bottom)
-            ]
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Edit and Resend'), onTap: () { Navigator.pop(context); setState(() { _controller.text = message.text; _removeMessagesFrom(index); _stopStreaming(); }); }),
+            ListTile(leading: const Icon(Icons.copy_outlined), title: const Text('Copy'), onTap: () { Navigator.pop(context); _copyToClipboard(message.text); }),
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
         ),
-      )
+      ),
     );
   }
 
-  Future<void> _pickImage(ImageSource source) async {
+  void _pickImage(ImageSource source) async {
     Navigator.pop(context);
     try {
-      final image = await ImagePicker().pickImage(source: source);
-      if (image != null) {
-        setState(() {
-          _isProcessingFile = true;
-          _attachedImage = null;
-          _attachment = null;
-        });
-        await Future.delayed(const Duration(milliseconds: 500));
-        setState(() {
-          _isProcessingFile = false;
-          _attachedImage = image;
-        });
-      }
+      setState(() {
+        _isProcessingFile = true;
+        _attachedImage = null;
+        _attachment = null;
+      });
+      final XFile? image = await ImagePicker().pickImage(source: source, imageQuality: 70);
+      setState(() {
+        _isProcessingFile = false;
+        _attachedImage = image;
+      });
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessingFile = false);
-        _showStyledSnackBar(message: 'Error picking image: $e', isError: true);
       }
     }
   }
 
-  Future<void> _pickAndProcessFile() async {
+  void _pickAndProcessFile() async {
     Navigator.pop(context);
     setState(() => _isProcessingFile = true);
     try {
       final attachment = await FileProcessingService.pickAndProcessFile();
       if (mounted) {
-        if (attachment != null) {
-          setState(() {
-            _attachment = attachment;
-            _attachedImage = null;
-            _isProcessingFile = false;
-          });
-          _showStyledSnackBar(message: '"${attachment.fileName}" uploaded and ready.');
-        } else {
-          setState(() => _isProcessingFile = false);
-        }
+        setState(() {
+          _attachment = attachment;
+          _attachedImage = null;
+          _isProcessingFile = false;
+        });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessingFile = false);
-        _showStyledSnackBar(message: 'Error reading file: $e', isError: true);
-      }
+      setState(() => _isProcessingFile = false);
+    }
+    
+    if (mounted) {
+      setState(() => _isProcessingFile = false);
     }
   }
 
@@ -987,77 +612,29 @@ Based on the successful execution of your plan, provide the final synthesized an
     );
   }
 
-
-
   Widget _buildAnimatedItem(ChatMessage message, int index, Animation<double> animation, int totalMessageCount, {bool isRemoving = false}) {
     return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: isRemoving ? Curves.easeOut : Curves.easeIn), child: _buildMessage(message, index, totalMessageCount),);
   }
 
-  final kMessageTextStyle = const TextStyle(fontSize: 15.5, height: 1.45);
-
   Widget _buildMessage(ChatMessage message, int index, int totalMessageCount) {
-    if (message.type == MessageType.scraped_content) {
-      return ScrapedContentMessage(message: message);
-    }
-    
-    if (message.text.startsWith('Here are your deployed sites:')) {
-      return DeployedSitesListMessage(
-        message: message,
-        onEdit: (String name, String siteId) {
-          setState(() {
-            // Auto mode always used - no manual switching needed
-            _controller.text = 'Redeploy the site "$name" (ID: $siteId) with the following changes: ';
-            _controller.selection = TextSelection.fromPosition(TextPosition(offset: _controller.text.length));
-          });
-        },
-      );
-    }
-
-
-    
-    if (message.role == 'model' && !((_isStreaming || _isSending) && index == _messages.length - 1) ) {
-      if (message.type == MessageType.image && message.imageUrl != null) {
-        return ImageMessage(
-          message: message,
-          onShowSnackbar: (String msg, {bool isError = false}) => _showStyledSnackBar(message: msg, isError: isError),
-        );
-      }
-      if (message.type == MessageType.image && message.filePath != null) {
-         return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16.0),
-                child: Image.file(
-                  File(message.filePath!),
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.error_outline, color: Colors.red, size: 40),
-                ),
+    if (message.role == 'system') {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.5))
               ),
+              child: Text(message.text, style: kMessageTextStyle.copyWith(color: message.text.startsWith('❌') ? Colors.redAccent : Theme.of(context).colorScheme.onSurface)),
             ),
-          ),
-        );
-      }
-      if (message.type == MessageType.presentation && message.slides != null) {
-        return PresentationMessage(message: message);
-      }
-      if (message.type == MessageType.file && message.filePath != null) {
-        return FileMessageWidget(message: message);
-      }
-      if (message.text.startsWith('❌') || message.text.contains('created successfully!') || message.text == 'External action completed.') {
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-            decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
-            child: Text(message.text, style: kMessageTextStyle.copyWith(color: message.text.startsWith('❌') ? Colors.redAccent : Theme.of(context).colorScheme.onSurface)),
-          ),
-        );
-      }
+          ],
+        ),
+      );
     }
 
     if (message.role == 'model' && message.text.isEmpty && index == _messages.length -1) {
@@ -1090,141 +667,130 @@ Based on the successful execution of your plan, provide the final synthesized an
   }
 
   Widget _buildAttachmentPreview() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.5))
-          ),
-          child: Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(File(_attachedImage!.path), height: 120, width: 120, fit: BoxFit.cover),
-              ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: GestureDetector(
-                  onTap: () => setState(() => _attachedImage = null),
-                  child: Container(
-                    decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), shape: BoxShape.circle),
-                    child: const Icon(Icons.close, color: Colors.white, size: 20),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    if (_attachedImage == null) return const SizedBox.shrink();
+    
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.5))
       ),
-    );
-  }
-
-  // Chat mode helper methods removed - no longer needed
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final theme = Theme.of(context);
-    final style = SystemUiOverlayStyle(
-      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-    );
-    final bool canInteract = !_isStreaming && !_isSending;
-
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        systemOverlayStyle: style,
-        title: Text(_chatTitle),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
-      body: Stack(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          StaticGradientBackground(isDark: isDark),
-          SafeArea(
-            bottom: false,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.file(File(_attachedImage!.path), height: 120, width: 120, fit: BoxFit.cover),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: AnimatedList(key: _listKey, controller: _scrollController, padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), initialItemCount: _messages.length, itemBuilder: (context, index, animation) { return _buildAnimatedItem(_messages[index], index, animation, _messages.length); },),
-                ),
-                if (_isProcessingFile)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: FileUploadIndicator(),
-                  ),
-                if (_attachment != null) AttachmentPreview(attachment: _attachment!, onClear: () => setState(() => _attachment = null)),
-                if (_attachedImage != null) _buildAttachmentPreview(),
-                Padding(
-                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 8, left: 16, right: 16, top: 8),
-                  child: GlassmorphismPanel(
-                    borderRadius: BorderRadius.circular(28),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 4),
-                            child: IconButton(
-                              icon: const Icon(CupertinoIcons.add),
-                              onPressed: canInteract ? _showToolsBottomSheet : null,
-                              tooltip: 'Attach',
-                              color: theme.colorScheme.secondary,
-                              iconSize: 24,
-                              padding: const EdgeInsets.all(8),
-                            ),
-                          ),
-                          Expanded(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 8),
-                              child: TextField(
-                                controller: _controller,
-                                enabled: canInteract,
-                                onSubmitted: (val) => _sendMessage(val),
-                                textInputAction: TextInputAction.send,
-                                maxLines: 5,
-                                minLines: 1,
-                                textAlignVertical: TextAlignVertical.center,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: theme.colorScheme.onSurface,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: !canInteract ? 'AhamAI is responding...' : 'Ask anything...',
-                                  hintStyle: TextStyle(
-                                    color: theme.hintColor.withOpacity(0.7),
-                                    fontSize: 16,
-                                  ),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 4),
-                            child: _buildRightActionButton(canInteract, theme),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                GestureDetector(
+                  onTap: () => setState(() => _attachedImage = null),
+                  child: const Icon(Icons.close, size: 20),
                 ),
               ],
             ),
           ),
-          if (_showScrollButton) Positioned(bottom: 110, right: 20, child: AnimatedOpacity(opacity: _showScrollButton ? 1.0 : 0.0, duration: const Duration(milliseconds: 300), child: FloatingActionButton.small(onPressed: _forceScrollToBottom, backgroundColor: isLightTheme(context) ? Colors.black.withOpacity(0.7) : draculaCurrentLine, child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),),),),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bool canInteract = !_isStreaming && !_isSending;
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(_chatTitle),
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        actions: [
+          if (_isStreaming || _isSending) 
+            IconButton(onPressed: _stopStreaming, icon: const Icon(Icons.stop_circle_outlined), tooltip: 'Stop'),
+        ],
+      ),
+      body: Stack(
+        children: [
+          StaticGradientBackground(isDark: theme.brightness == Brightness.dark, child: const SizedBox.expand()),
+          Column(
+            children: [
+              Expanded(
+                child: AnimatedList(key: _listKey, controller: _scrollController, padding: const EdgeInsets.fromLTRB(8, 8, 8, 0), initialItemCount: _messages.length, itemBuilder: (context, index, animation) { return _buildAnimatedItem(_messages[index], index, animation, _messages.length); },),
+              ),
+              Column(
+                children: [
+                if (_isProcessingFile)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: CircularProgressIndicator(),
+                  ),
+                if (_attachment != null) AttachmentPreview(attachment: _attachment, onClear: () => setState(() => _attachment = null)),
+                if (_attachedImage != null) _buildAttachmentPreview(),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        child: IconButton(
+                          icon: const Icon(CupertinoIcons.add),
+                          onPressed: canInteract ? _showToolsBottomSheet : null,
+                          tooltip: 'Attach',
+                          color: theme.colorScheme.secondary,
+                          iconSize: 24,
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          child: TextField(
+                            controller: _controller,
+                            enabled: canInteract,
+                            onSubmitted: (val) => _sendMessage(val),
+                            textInputAction: TextInputAction.send,
+                            maxLines: 5,
+                            minLines: 1,
+                            textAlignVertical: TextAlignVertical.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: !canInteract ? 'AhamAI is responding...' : 'Ask anything...',
+                              hintStyle: TextStyle(
+                                color: theme.hintColor.withOpacity(0.7),
+                                fontSize: 16,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 4),
+                        child: _buildRightActionButton(canInteract, theme),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        if (_showScrollButton) Positioned(bottom: 110, right: 20, child: AnimatedOpacity(opacity: _showScrollButton ? 1.0 : 0.0, duration: const Duration(milliseconds: 300), child: FloatingActionButton.small(onPressed: _forceScrollToBottom, backgroundColor: isLightTheme(context) ? Colors.black.withOpacity(0.7) : draculaCurrentLine, child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),),),),
         ],
       ),
     );
@@ -1233,10 +799,10 @@ Based on the successful execution of your plan, provide the final synthesized an
   Widget _buildRightActionButton(bool canInteract, ThemeData theme) {
     if (_isStreaming || _isSending) {
       return IconButton(
-        icon: const Icon(CupertinoIcons.stop_fill),
+        icon: const Icon(Icons.stop_circle_outlined),
         onPressed: _stopStreaming,
-        tooltip: 'Stop response',
-        color: Colors.redAccent.withOpacity(0.9),
+        color: Colors.red,
+        tooltip: 'Stop',
       );
     }
     
@@ -1261,4 +827,3 @@ Based on the successful execution of your plan, provide the final synthesized an
 
   // Mode switcher removed - AI auto-detects the appropriate mode
 }
-
