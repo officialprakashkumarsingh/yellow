@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -40,20 +41,27 @@ class OpenAIService {
         'max_tokens': 4000,
       };
 
-      final response = await http.post(
+      final request = http.Request(
+        'POST',
         Uri.parse('${config.apiBaseUrl}/v1/chat/completions'),
-        headers: {
-          'Authorization': 'Bearer ${config.apiKey}',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
       );
-
-      if (response.statusCode == 200) {
+      
+      request.headers.addAll({
+        'Authorization': 'Bearer ${config.apiKey}',
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      });
+      
+      request.body = jsonEncode(requestBody);
+      
+      final streamedResponse = await http.Client().send(request);
+      
+      if (streamedResponse.statusCode == 200) {
         // Handle streaming response
-        await _handleStreamingResponse(response, controller);
+        await _handleStreamingResponse(streamedResponse, controller);
       } else {
-        throw Exception('API request failed: ${response.statusCode} - ${response.body}');
+        final errorBody = await streamedResponse.stream.bytesToString();
+        throw Exception('API request failed: ${streamedResponse.statusCode} - $errorBody');
       }
     } catch (e) {
       controller.addError('Error: $e');
@@ -194,30 +202,33 @@ class OpenAIService {
     return requestMessages;
   }
 
-  Future<void> _handleStreamingResponse(
-    http.Response response, 
+    Future<void> _handleStreamingResponse(
+    http.StreamedResponse response,
     StreamController<String> controller,
   ) async {
     try {
-      final responseBody = response.body;
-      final lines = responseBody.split('\n');
+      String buffer = '';
       
-      for (final line in lines) {
-        if (line.startsWith('data: ')) {
-          final jsonData = line.substring(6);
-          if (jsonData.trim() == '[DONE]') {
+      await for (final chunk in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (chunk.startsWith('data: ')) {
+          final jsonData = chunk.substring(6).trim();
+          
+          if (jsonData == '[DONE]') {
             controller.close();
             return;
           }
           
+          if (jsonData.isEmpty) continue;
+          
           try {
             final data = jsonDecode(jsonData);
             final content = data['choices']?[0]?['delta']?['content'];
-            if (content != null) {
+            if (content != null && content is String) {
               controller.add(content);
             }
           } catch (e) {
             // Skip invalid JSON lines
+            debugPrint('JSON parsing error: $e for data: $jsonData');
             continue;
           }
         }

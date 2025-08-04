@@ -48,12 +48,16 @@ class AhamRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeNotifier>(
       builder: (context, theme, child) {
-        final isDark = theme.themeMode == ThemeMode.dark;
-        final brightness = isDark ? Brightness.light : Brightness.dark;
+        // Get the actual current brightness from the context
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        final statusBarBrightness = isDarkMode ? Brightness.light : Brightness.dark;
+        final navBarColor = isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
+        
         SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-          statusBarIconBrightness: brightness,
-          systemNavigationBarIconBrightness: brightness,
-          systemNavigationBarColor: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF2F2F7),
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: statusBarBrightness,
+          systemNavigationBarColor: navBarColor,
+          systemNavigationBarIconBrightness: statusBarBrightness,
           systemNavigationBarDividerColor: Colors.transparent,
         ));
 
@@ -128,7 +132,7 @@ class AuthGate extends StatelessWidget {
         if (session != null) {
           return const _AppStartDecision();
                   } else {
-            return const LoginScreen();
+            return const AuthScreen();
           }
       },
     );

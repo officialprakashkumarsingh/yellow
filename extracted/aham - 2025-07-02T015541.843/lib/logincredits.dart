@@ -70,203 +70,146 @@ class AuthService {
   }
 }
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _AuthScreenState extends State<AuthScreen> {
+  bool _isLogin = true;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLogin = true;
+  final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
-  void _showMessage(String message, {bool isError = false}) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: isError ? Colors.red : Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
+  void _showErrorSnackBar(String message) {
+    if(!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message, style: const TextStyle(color: Colors.white)),
+      backgroundColor: Colors.redAccent,
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
-  void _handleAuth() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      _showMessage('Please fill in all fields.', isError: true);
-      return;
-    }
-
+  Future<void> _handleAuth() async {
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-
     try {
       if (_isLogin) {
         await AuthService.instance.signIn(email: _emailController.text, password: _passwordController.text);
       } else {
         await AuthService.instance.signUp(email: _emailController.text, password: _passwordController.text);
       }
+    } on AuthException catch (e) {
+      _showErrorSnackBar(e.message);
     } catch (e) {
-      _showMessage(e.toString(), isError: true);
+      _showErrorSnackBar('An unexpected error occurred.');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if(mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+  
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      body: StaticGradientBackground(
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 60),
-                
-                // Logo and Title
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    gradient: LinearGradient(
-                      colors: isDark 
-                        ? [const Color(0xFF6366F1), const Color(0xFF8B5CF6)]
-                        : [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          StaticGradientBackground(isDark: isDark),
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(CupertinoIcons.sparkles, size: 60),
+                    const SizedBox(height: 16),
+                    Text(
+                      _isLogin ? 'Welcome Back' : 'Create Account',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isDark ? const Color(0xFF6366F1) : const Color(0xFF3B82F6)).withOpacity(0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    CupertinoIcons.sparkles,
-                    size: 60,
-                    color: Colors.white,
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                Text(
-                  'AhamAI',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF1F2937),
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-                
-                Text(
-                  _isLogin ? 'Sign in to continue your journey with AhamAI.' : 'Sign up to start exploring with AhamAI.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isDark ? Colors.white70 : const Color(0xFF6B7280),
-                  ),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                // Login Form
-                GlassmorphismPanel(
-                  child: Column(
-                    children: [
-                      TextField(
+                    const SizedBox(height: 8),
+                    Text(
+                      _isLogin ? 'Sign in to continue your journey with AhamAI.' : 'Sign up to start exploring with AhamAI.',
+                       textAlign: TextAlign.center,
+                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).hintColor),
+                    ),
+                    const SizedBox(height: 32),
+                    GlassmorphismPanel(
+                      child: TextFormField(
                         controller: _emailController,
+                        style: const TextStyle(fontSize: 16),
+                        decoration: const InputDecoration(
+                          hintText: 'Email', 
+                          border: InputBorder.none, 
+                          prefixIcon: Icon(CupertinoIcons.mail, size: 22), 
+                          contentPadding: EdgeInsets.symmetric(vertical: 18),
+                        ),
+                        validator: (value) => (value == null || !value.contains('@')) ? 'Please enter a valid email' : null,
                         keyboardType: TextInputType.emailAddress,
-                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                        decoration: InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: Icon(CupertinoIcons.mail, color: isDark ? Colors.white70 : Colors.black54),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
-                        ),
                       ),
-                      const SizedBox(height: 16),
-                      TextField(
+                    ),
+                    const SizedBox(height: 16),
+                    GlassmorphismPanel(
+                      child: TextFormField(
                         controller: _passwordController,
-                        obscureText: true,
-                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(CupertinoIcons.lock, color: isDark ? Colors.white70 : Colors.black54),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                        style: const TextStyle(fontSize: 16),
+                        decoration: const InputDecoration(
+                          hintText: 'Password', 
+                          border: InputBorder.none, 
+                          prefixIcon: Icon(CupertinoIcons.lock, size: 22), 
+                          contentPadding: EdgeInsets.symmetric(vertical: 18),
                         ),
+                        obscureText: true,
+                        validator: (value) => (value == null || value.length < 6) ? 'Password must be at least 6 characters' : null,
                       ),
-                      const SizedBox(height: 24),
-                      
-                      // Auth Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _handleAuth,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: isDark ? const Color(0xFF6366F1) : const Color(0xFF3B82F6),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: _isLoading
-                            ? const CupertinoActivityIndicator(color: Colors.white)
+                    ),
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: _isLoading ? null : _handleAuth,
+                      child: GlassmorphismPanel(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          child: Center(
+                            child: _isLoading 
+                            ? const CupertinoActivityIndicator() 
                             : Text(
                                 _isLogin ? 'Sign In' : 'Sign Up',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 16),
-                      
-                      // Toggle Auth Mode
-                      TextButton(
-                        onPressed: () => setState(() => _isLogin = !_isLogin),
-                        child: Text(
-                          _isLogin 
-                            ? "Don't have an account? Sign up"
-                            : "Already have an account? Sign in",
-                          style: TextStyle(
-                            color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF6366F1),
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                    CupertinoButton(
+                      onPressed: () => setState(() => _isLogin = !_isLogin),
+                      child: Text(
+                        _isLogin ? 'Don\'t have an account? Sign Up' : 'Already have an account? Sign In',
+                        style: TextStyle(color: Theme.of(context).hintColor),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          )
+        ],
       ),
     );
   }
