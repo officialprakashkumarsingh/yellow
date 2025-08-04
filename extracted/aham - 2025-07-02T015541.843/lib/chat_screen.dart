@@ -973,10 +973,11 @@ Based on the successful execution of your plan, provide the final synthesized an
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [FileSourceButton(icon: CupertinoIcons.camera, label: 'Camera', onTap: () => _pickImage(ImageSource.camera)), FileSourceButton(icon: CupertinoIcons.photo, label: 'Photos', onTap: () => _pickImage(ImageSource.gallery)), FileSourceButton(icon: CupertinoIcons.folder, label: 'Files', onTap: _pickAndProcessFile)]),
-                const Divider(height: 32),
-                ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.language_outlined), title: const Text('View Deployed Sites'), onTap: () { Navigator.pop(context); _sendMessage("List my deployed sites"); }),
-                ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.image_outlined), title: const Text('Create an image'), onTap: () { Navigator.pop(context); _showImagePromptDialog(); }),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                  FileSourceButton(icon: CupertinoIcons.camera, label: 'Camera', onTap: () => _pickImage(ImageSource.camera)), 
+                  FileSourceButton(icon: CupertinoIcons.photo, label: 'Photos', onTap: () => _pickImage(ImageSource.gallery)), 
+                  FileSourceButton(icon: CupertinoIcons.folder, label: 'Files', onTap: _pickAndProcessFile)
+                ]),
                 SizedBox(height: MediaQuery.of(context).padding.bottom)
               ]
             )
@@ -986,40 +987,7 @@ Based on the successful execution of your plan, provide the final synthesized an
     );
   }
 
-  void _showImagePromptDialog() async {
-    final TextEditingController promptController = TextEditingController();
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.3),
-      builder: (context) => StyledDialog(
-          title: 'Image Topic',
-          contentWidget: TextField(
-            controller: promptController,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: 'e.g., An astronaut on a horse'),
-            onSubmitted: (prompt) {
-               if (prompt.trim().isNotEmpty) {
-                Navigator.of(context).pop();
-                _sendMessage("Create an image of: $prompt");
-              }
-            },
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () {
-                final prompt = promptController.text;
-                if (prompt.trim().isNotEmpty) {
-                  Navigator.of(context).pop();
-                  _sendMessage("Create an image of: $prompt");
-                }
-              },
-              child: const Text('Generate'),
-            ),
-          ],
-        ),
-    );
-  }
+
 
   Widget _buildAnimatedItem(ChatMessage message, int index, Animation<double> animation, int totalMessageCount, {bool isRemoving = false}) {
     return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: isRemoving ? Curves.easeOut : Curves.easeIn), child: _buildMessage(message, index, totalMessageCount),);
@@ -1208,7 +1176,7 @@ Based on the successful execution of your plan, provide the final synthesized an
                             margin: const EdgeInsets.only(bottom: 4),
                             child: IconButton(
                               icon: const Icon(CupertinoIcons.add),
-                              onPressed: null, // Tools removed
+                              onPressed: canInteract ? _showToolsBottomSheet : null,
                               tooltip: 'Attach',
                               color: theme.colorScheme.secondary,
                               iconSize: 24,
@@ -1294,30 +1262,3 @@ Based on the successful execution of your plan, provide the final synthesized an
   // Mode switcher removed - AI auto-detects the appropriate mode
 }
 
-class AgentStatusMessage extends StatelessWidget {
-  final ChatMessage message;
-  const AgentStatusMessage({super.key, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final icon = message.statusIcon ?? Icons.info_outline;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: theme.hintColor),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message.text,
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

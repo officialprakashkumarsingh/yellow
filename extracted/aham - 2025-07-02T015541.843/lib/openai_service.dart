@@ -231,8 +231,6 @@ class OpenAIService {
     StreamController<String> controller,
   ) async {
     try {
-      String buffer = '';
-      
       await for (final chunk in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
         if (chunk.startsWith('data: ')) {
           final jsonData = chunk.substring(6).trim();
