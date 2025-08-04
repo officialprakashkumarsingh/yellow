@@ -707,7 +707,7 @@ Based on the context above, answer the following prompt: $input""";
     final bool canInteract = !_isStreaming && !_isSending;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(_chatTitle),
         backgroundColor: Colors.transparent,
@@ -724,9 +724,18 @@ Based on the context above, answer the following prompt: $input""";
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          StaticGradientBackground(isDark: theme.brightness == Brightness.dark, child: const SizedBox.expand()),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: theme.brightness == Brightness.dark 
+              ? [draculaBackground, draculaCurrentLine]
+              : [Colors.white, Colors.grey.shade50],
+          ),
+        ),
+        child: Stack(
+          children: [
           Column(
             children: [
               Expanded(
@@ -743,15 +752,6 @@ Based on the context above, answer the following prompt: $input""";
                 if (_attachedImage != null) _buildAttachmentPreview(),
                 Container(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: theme.brightness == Brightness.dark 
-                        ? [Colors.transparent, draculaBackground.withOpacity(0.8)]
-                        : [Colors.transparent, Colors.white.withOpacity(0.8)],
-                    ),
-                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -809,6 +809,7 @@ Based on the context above, answer the following prompt: $input""";
         if (_showScrollButton) Positioned(bottom: 110, right: 20, child: AnimatedOpacity(opacity: _showScrollButton ? 1.0 : 0.0, duration: const Duration(milliseconds: 300), child: FloatingActionButton.small(onPressed: _forceScrollToBottom, backgroundColor: isLightTheme(context) ? Colors.black.withOpacity(0.7) : draculaCurrentLine, child: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),),),),
         ],
       ),
+        ),
     );
   }
 
