@@ -7,10 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ahamai/ui_widgets.dart';
 
-class CreditService {
-  static final CreditService instance = CreditService._internal();
-  factory CreditService() => instance;
-  CreditService._internal();
+class AuthService {
+  static final AuthService instance = AuthService._internal();
+  factory AuthService() => instance;
+  AuthService._internal();
 
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -68,503 +68,372 @@ class CreditService {
   Future<void> signOut() async {
     await _client.auth.signOut();
   }
-
-  Future<int> getCredits() async {
-    if (currentUser == null) return 0;
-    try {
-      final data = await _client.from('profiles').select('credits').eq('id', currentUser!.id).single();
-      return data['credits'] as int;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  Future<void> deductCredits(int amount) async {
-    if (currentUser == null) return;
-    final currentCredits = await getCredits();
-    if (currentCredits >= amount) {
-      final newCredits = currentCredits - amount;
-      await _client.from('profiles').update({'credits': newCredits}).eq('id', currentUser!.id);
-      await addCreditHistory(description: 'Action performed', amount: -amount);
-    }
-  }
-  
-  Future<void> addCredits(int amount, {String description = 'Credits added'}) async {
-    if (currentUser == null) return;
-    final currentCredits = await getCredits();
-    final newCredits = currentCredits + amount;
-    await _client.from('profiles').update({'credits': newCredits}).eq('id', currentUser!.id);
-    await addCreditHistory(description: description, amount: amount);
-  }
-  
-  Future<String> redeemCoupon(String code) async {
-    if (currentUser == null) return 'error: You must be logged in.';
-    try {
-      final result = await _client.rpc('redeem_coupon_code', params: {'coupon_code': code});
-      return result as String;
-    } on PostgrestException catch (e) {
-      // Handle potential RPC errors more gracefully
-      return 'error: ${e.message}';
-    } catch (e) {
-      return 'error: An unexpected error occurred.';
-    }
-  }
-
-  Future<void> addCreditHistory({required String description, required int amount}) async {
-    if (currentUser == null) return;
-    await _client.from('credit_history').insert({
-      'user_id': currentUser!.id,
-      'description': description,
-      'amount': amount,
-    });
-  }
-
-  Future<List<Map<String, dynamic>>> getCreditHistory() async {
-    if (currentUser == null) return [];
-    final response = await _client.from('credit_history').select().eq('user_id', currentUser!.id).order('created_at', ascending: false);
-    return List<Map<String, dynamic>>.from(response);
-  }
 }
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
-class _AuthScreenState extends State<AuthScreen> {
-  bool _isLogin = true;
+
+class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
+  bool _isLogin = true;
   bool _isLoading = false;
 
-  void _showErrorSnackBar(String message) {
-    if(!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message, style: const TextStyle(color: Colors.white)),
-      backgroundColor: Colors.redAccent,
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+  void _showMessage(String message, {bool isError = false}) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
-  Future<void> _handleAuth() async {
-    if (!_formKey.currentState!.validate()) return;
+  void _handleAuth() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showMessage('Please fill in all fields.', isError: true);
+      return;
+    }
+
     setState(() => _isLoading = true);
+
     try {
       if (_isLogin) {
-        await CreditService.instance.signIn(email: _emailController.text, password: _passwordController.text);
+        await AuthService.instance.signIn(email: _emailController.text, password: _passwordController.text);
       } else {
-        await CreditService.instance.signUp(email: _emailController.text, password: _passwordController.text);
+        await AuthService.instance.signUp(email: _emailController.text, password: _passwordController.text);
       }
-    } on AuthException catch (e) {
-      _showErrorSnackBar(e.message);
     } catch (e) {
-      _showErrorSnackBar('An unexpected error occurred.');
+      _showMessage(e.toString(), isError: true);
     } finally {
-      if(mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          StaticGradientBackground(isDark: isDark),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Icon(CupertinoIcons.sparkles, size: 60),
-                    const SizedBox(height: 16),
-                    Text(
-                      _isLogin ? 'Welcome Back' : 'Create Account',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+      body: StaticGradientBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 60),
+                
+                // Logo and Title
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(30),
+                    gradient: LinearGradient(
+                      colors: isDark 
+                        ? [const Color(0xFF6366F1), const Color(0xFF8B5CF6)]
+                        : [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _isLogin ? 'Sign in to continue your journey with Aham.' : 'Sign up to get 500 free credits and start exploring.',
-                       textAlign: TextAlign.center,
-                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).hintColor),
-                    ),
-                    const SizedBox(height: 32),
-                    GlassmorphismPanel(
-                      child: TextFormField(
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isDark ? const Color(0xFF6366F1) : const Color(0xFF3B82F6)).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    CupertinoIcons.sparkles,
+                    size: 60,
+                    color: Colors.white,
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                Text(
+                  'AhamAI',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1F2937),
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                Text(
+                  _isLogin ? 'Sign in to continue your journey with AhamAI.' : 'Sign up to start exploring with AhamAI.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.white70 : const Color(0xFF6B7280),
+                  ),
+                ),
+                
+                const SizedBox(height: 48),
+                
+                // Login Form
+                GlassmorphismPanel(
+                  child: Column(
+                    children: [
+                      TextField(
                         controller: _emailController,
-                        style: const TextStyle(fontSize: 16),
-                        decoration: const InputDecoration(
-                          hintText: 'Email', border: InputBorder.none, prefixIcon: Icon(CupertinoIcons.mail, size: 22), contentPadding: EdgeInsets.symmetric(vertical: 18),
-                        ),
-                        validator: (value) => (value == null || !value.contains('@')) ? 'Please enter a valid email' : null,
                         keyboardType: TextInputType.emailAddress,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    GlassmorphismPanel(
-                      child: TextFormField(
-                        controller: _passwordController,
-                        style: const TextStyle(fontSize: 16),
-                        decoration: const InputDecoration(
-                          hintText: 'Password', border: InputBorder.none, prefixIcon: Icon(CupertinoIcons.lock, size: 22), contentPadding: EdgeInsets.symmetric(vertical: 18),
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(CupertinoIcons.mail, color: isDark ? Colors.white70 : Colors.black54),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
                         ),
-                        obscureText: true,
-                        validator: (value) => (value == null || value.length < 6) ? 'Password must be at least 6 characters' : null,
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    GestureDetector(
-                      onTap: _isLoading ? null : _handleAuth,
-                      child: GlassmorphismPanel(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          child: Center(
-                            child: _isLoading 
-                            ? const CupertinoActivityIndicator() 
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: Icon(CupertinoIcons.lock, color: isDark ? Colors.white70 : Colors.black54),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.05),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Auth Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleAuth,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDark ? const Color(0xFF6366F1) : const Color(0xFF3B82F6),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                            ? const CupertinoActivityIndicator(color: Colors.white)
                             : Text(
                                 _isLogin ? 'Sign In' : 'Sign Up',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Toggle Auth Mode
+                      TextButton(
+                        onPressed: () => setState(() => _isLogin = !_isLogin),
+                        child: Text(
+                          _isLogin 
+                            ? "Don't have an account? Sign up"
+                            : "Already have an account? Sign in",
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFF8B5CF6) : const Color(0xFF6366F1),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                    ),
-                    CupertinoButton(
-                      onPressed: () => setState(() => _isLogin = !_isLogin),
-                      child: Text(
-                        _isLogin ? 'Don\'t have an account? Sign Up' : 'Already have an account? Sign In',
-                        style: TextStyle(color: Theme.of(context).hintColor),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class CreditHistoryScreen extends StatefulWidget {
-  const CreditHistoryScreen({super.key});
-
-  @override
-  State<CreditHistoryScreen> createState() => _CreditHistoryScreenState();
-}
-
-class _CreditHistoryScreenState extends State<CreditHistoryScreen> {
-  void _showCouponDialog() {
-    final couponController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    bool isDialogLoading = false;
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.3),
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return StyledDialog(
-              title: 'Redeem Coupon',
-              contentWidget: Form(
-                key: formKey,
-                child: TextFormField(
-                  controller: couponController,
-                  autofocus: true,
-                  decoration: const InputDecoration(hintText: 'Enter your coupon code'),
-                  validator: (value) => (value == null || value.trim().isEmpty) ? 'Cannot be empty' : null,
-                  onFieldSubmitted: (v) async {
-                    if (isDialogLoading) return;
-                    if (formKey.currentState!.validate()) {
-                      setDialogState(() => isDialogLoading = true);
-                      final result = await CreditService.instance.redeemCoupon(couponController.text.trim());
-                      if (mounted) {
-                        _handleRedemptionResult(result, dialogContext);
-                        setDialogState(() => isDialogLoading = false);
-                      }
-                    }
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: isDialogLoading ? null : () async {
-                    if (formKey.currentState!.validate()) {
-                      setDialogState(() => isDialogLoading = true);
-                      final result = await CreditService.instance.redeemCoupon(couponController.text.trim());
-                      if (mounted) {
-                        _handleRedemptionResult(result, dialogContext);
-                        setDialogState(() => isDialogLoading = false);
-                      }
-                    }
-                  },
-                  child: isDialogLoading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Redeem'),
-                )
               ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _handleRedemptionResult(String result, BuildContext dialogContext) {
-    if (result.startsWith('success:')) {
-      Navigator.of(dialogContext).pop(); // Close dialog on success
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.replaceFirst('success: ', ''), style: const TextStyle(color: Colors.white)),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ));
-      // Refresh the history list
-      setState(() {});
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result.replaceFirst('error: ', ''), style: const TextStyle(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final style = SystemUiOverlayStyle(statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark);
-
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: style,
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          systemOverlayStyle: style,
-          title: const Text('Credit History'),
-          centerTitle: true,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          actions: [
-            IconButton(
-              icon: const Icon(CupertinoIcons.gift),
-              tooltip: 'Redeem Coupon',
-              onPressed: _showCouponDialog,
-            )
-          ],
-        ),
-        body: Stack(
-          children: [
-            StaticGradientBackground(isDark: isDark),
-            SafeArea(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: CreditService.instance.getCreditHistory(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('No credit history found.'));
-                  }
-                  final history = snapshot.data!;
-                  return ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0),
-                    itemCount: history.length,
-                    itemBuilder: (context, index) {
-                      final item = history[index];
-                      final amount = item['amount'] as int;
-                      final isCredit = amount > 0;
-                      final date = DateTime.parse(item['created_at']).toLocal();
-                      final formattedDate = '${date.day}/${date.month}/${date.year}';
-                      return Card(
-                        elevation: 0,
-                        color: Theme.of(context).cardColor.withOpacity(0.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        child: ListTile(
-                          leading: Icon(
-                            isCredit ? CupertinoIcons.plus_circle_fill : CupertinoIcons.minus_circle_fill,
-                            color: isCredit ? Colors.green : Colors.red,
-                          ),
-                          title: Text(item['description']),
-                          subtitle: Text(formattedDate),
-                          trailing: Text(
-                            '${isCredit ? '+' : ''}$amount',
-                            style: TextStyle(
-                              color: isCredit ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class RewardedAdCreditTile extends StatefulWidget {
-  final VoidCallback onCreditsAdded;
-  const RewardedAdCreditTile({super.key, required this.onCreditsAdded});
+// Keep the RewardedAdTile functionality for ads
+class RewardedAdTile extends StatefulWidget {
+  final VoidCallback onAdWatched;
+  const RewardedAdTile({super.key, required this.onAdWatched});
 
   @override
-  State<RewardedAdCreditTile> createState() => _RewardedAdCreditTileState();
+  State<RewardedAdTile> createState() => _RewardedAdTileState();
 }
 
-class _RewardedAdCreditTileState extends State<RewardedAdCreditTile> {
-  static const String adUnitId = 'ca-app-pub-3394897715416901/4102565339';
-  static const int adRewardAmount = 25;
-  static const Duration cooldownDuration = Duration(minutes: 30);
-  
+class _RewardedAdTileState extends State<RewardedAdTile> {
   RewardedAd? _rewardedAd;
-  bool _isAdLoading = false;
-  Timer? _cooldownTimer;
+  bool _isAdReady = false;
+  bool _isLoading = false;
+  bool onCooldown = false;
   Duration _remainingCooldown = Duration.zero;
+  Timer? _cooldownTimer;
+  Timer? _countdownTimer;
+  
+  final String _adUnitId = 'ca-app-pub-3940256099942544/5224354917'; // Test ad unit ID
 
   @override
   void initState() {
     super.initState();
-    _checkCooldown();
-  }
-
-  Future<void> _checkCooldown() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastAdTimeMillis = prefs.getInt('last_ad_time') ?? 0;
-    final lastAdTime = DateTime.fromMillisecondsSinceEpoch(lastAdTimeMillis);
-    final now = DateTime.now();
-    final difference = now.difference(lastAdTime);
-
-    if (difference < cooldownDuration) {
-      if (mounted) {
-        setState(() => _remainingCooldown = cooldownDuration - difference);
-        _startTimer();
-      }
-    } else {
-      _loadAd();
-    }
-  }
-
-  void _startTimer() {
-    _cooldownTimer?.cancel();
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) {
-        _cooldownTimer?.cancel();
-        return;
-      }
-
-      if (_remainingCooldown.inSeconds > 0) {
-        setState(() => _remainingCooldown = _remainingCooldown - const Duration(seconds: 1));
-      } else {
-        _cooldownTimer?.cancel();
-        _loadAd();
-        setState(() {});
-      }
-    });
-  }
-
-  void _loadAd() {
-    if (!mounted) return;
-    setState(() => _isAdLoading = true);
-    RewardedAd.load(
-      adUnitId: adUnitId,
-      request: const AdRequest(),
-      rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (ad) {
-          _rewardedAd = ad;
-          if (mounted) setState(() => _isAdLoading = false);
-        },
-        onAdFailedToLoad: (err) {
-          if (mounted) setState(() => _isAdLoading = false);
-        },
-      ),
-    );
-  }
-  
-  void _showAd() {
-    if (_rewardedAd == null) return;
-    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _loadAd();
-      },
-      onAdFailedToShowFullScreenContent: (ad, err) {
-        ad.dispose();
-        _loadAd();
-      },
-    );
-    _rewardedAd!.show(
-      onUserEarnedReward: (ad, reward) async {
-        await CreditService.instance.addCredits(adRewardAmount, description: 'Watched ad for credits');
-        widget.onCreditsAdded();
-        
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('last_ad_time', DateTime.now().millisecondsSinceEpoch);
-        
-        if(mounted) {
-          setState(() => _remainingCooldown = cooldownDuration);
-          _startTimer();
-        }
-      },
-    );
-    _rewardedAd = null;
+    _loadCooldownState();
+    _loadRewardedAd();
   }
 
   @override
   void dispose() {
     _rewardedAd?.dispose();
     _cooldownTimer?.cancel();
+    _countdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _loadCooldownState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastAdWatchTime = prefs.getInt('last_ad_watch_time') ?? 0;
+    final cooldownDuration = const Duration(hours: 2);
+    final timeSinceLastAd = DateTime.now().millisecondsSinceEpoch - lastAdWatchTime;
+    
+    if (timeSinceLastAd < cooldownDuration.inMilliseconds) {
+      final remainingTime = cooldownDuration.inMilliseconds - timeSinceLastAd;
+      setState(() {
+        onCooldown = true;
+        _remainingCooldown = Duration(milliseconds: remainingTime);
+      });
+      _startCooldownTimer();
+    }
+  }
+
+  void _startCooldownTimer() {
+    _cooldownTimer = Timer(_remainingCooldown, () {
+      if (mounted) {
+        setState(() {
+          onCooldown = false;
+          _remainingCooldown = Duration.zero;
+        });
+      }
+    });
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _remainingCooldown.inSeconds > 0) {
+        setState(() {
+          _remainingCooldown = Duration(seconds: _remainingCooldown.inSeconds - 1);
+        });
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _loadRewardedAd() {
+    RewardedAd.load(
+      adUnitId: _adUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) {},
+            onAdImpression: (ad) {},
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              ad.dispose();
+              setState(() {
+                _isAdReady = false;
+                _isLoading = false;
+              });
+              _loadRewardedAd();
+            },
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+              setState(() {
+                _isAdReady = false;
+                _isLoading = false;
+              });
+              _loadRewardedAd();
+            },
+            onAdClicked: (ad) {},
+          );
+
+          setState(() {
+            _rewardedAd = ad;
+            _isAdReady = true;
+            _isLoading = false;
+          });
+        },
+        onAdFailedToLoad: (err) {
+          setState(() {
+            _isLoading = false;
+          });
+        },
+      ),
+    );
+  }
+
+  void _showRewardedAd() async {
+    if (_rewardedAd == null || onCooldown) return;
+
+    setState(() => _isLoading = true);
+
+    await _rewardedAd!.show(
+      onUserEarnedReward: (AdWithoutView ad, RewardItem reward) async {
+        // Give some reward (can be points, unlock features, etc.)
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('last_ad_watch_time', DateTime.now().millisecondsSinceEpoch);
+        
+        widget.onAdWatched();
+        
+        setState(() {
+          onCooldown = true;
+          _remainingCooldown = const Duration(hours: 2);
+        });
+        _startCooldownTimer();
+      },
+    );
+  }
+
+  String formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = twoDigits(duration.inHours);
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    return "${hours}h ${minutes}m";
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool onCooldown = _remainingCooldown.inSeconds > 0;
-    final bool canShowAd = _rewardedAd != null && !_isAdLoading && !onCooldown;
-    
-    String formatDuration(Duration d) {
-      String twoDigits(int n) => n.toString().padLeft(2, "0");
-      String twoDigitMinutes = twoDigits(d.inMinutes.remainder(60));
-      String twoDigitSeconds = twoDigits(d.inSeconds.remainder(60));
-      return "$twoDigitMinutes:$twoDigitSeconds";
-    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return ListTile(
-      contentPadding: EdgeInsets.zero,
       leading: Icon(
-        CupertinoIcons.play_rectangle_fill,
-        color: canShowAd ? Colors.blueAccent : Theme.of(context).disabledColor,
+        CupertinoIcons.tv,
+        color: onCooldown ? Colors.grey : (isDark ? const Color(0xFF10B981) : const Color(0xFF059669)),
       ),
-      title: Text(onCooldown ? 'Next ad in ${formatDuration(_remainingCooldown)}' : 'Watch Ad for $adRewardAmount Credits'),
-      subtitle: _isAdLoading ? const Text('Loading ad...') : null,
-      trailing: canShowAd ? const Icon(CupertinoIcons.chevron_forward, size: 18) : null,
-      onTap: canShowAd ? _showAd : null,
+      title: Text(onCooldown ? 'Next ad in ${formatDuration(_remainingCooldown)}' : 'Watch Ad for Rewards'),
+      subtitle: Text(onCooldown ? 'Come back later to watch another ad' : 'Get rewards by watching a short video'),
+      trailing: _isLoading 
+        ? const CupertinoActivityIndicator()
+        : Icon(
+            CupertinoIcons.chevron_right,
+            color: onCooldown ? Colors.grey : Theme.of(context).colorScheme.secondary,
+          ),
+      onTap: (!_isAdReady || onCooldown || _isLoading) ? null : _showRewardedAd,
     );
   }
 }

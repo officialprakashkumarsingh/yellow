@@ -53,7 +53,7 @@ Based on the web search results above, please respond to the user's prompt: $_ba
     }
     
     return ChatModeResult(
-      systemPrompt: """You are Aham, a friendly and highly intelligent AI assistant.
+      systemPrompt: """You are AhamAI, a friendly and highly intelligent AI assistant.
 Your primary goal is to provide clear, well-structured, and engaging answers.
 
 **Formatting Instructions:**
@@ -110,7 +110,7 @@ The current date is ${DateTime.now().toIso8601String()}.
 
   String _getAgentPromptTemplate(String imageModelIds) {
     return """
-You are AGI-OS 2.0, a hyper-intelligent reasoning engine operating inside the Aham AI. Your purpose is to achieve user goals by thinking, planning, and executing actions with your powerful suite of tools. You are a master strategist, specializing in web automation and information retrieval.
+You are AGI-OS 2.0, a hyper-intelligent reasoning engine operating inside the AhamAI. Your purpose is to achieve user goals by thinking, planning, and executing actions with your powerful suite of tools. You are a master strategist, specializing in web automation and information retrieval.
 
 **Core Directive: The Thought-Critique-Plan-Execution Loop**
 For any request that requires action, you MUST respond with a single JSON object. This object MUST follow a strict schema:

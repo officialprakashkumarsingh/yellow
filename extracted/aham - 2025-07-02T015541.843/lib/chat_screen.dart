@@ -52,7 +52,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   bool _isStoppedByUser = false;
   bool _isSending = false;
   
-  ChatMode _chatMode = ChatMode.auto;
+  // Chat mode switching removed - AI will auto-detect the appropriate mode
 
   late String _selectedChatModelId;
   bool _isModelSetupComplete = false;
@@ -206,14 +206,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _httpClient = http.Client();
 
     try {
-      final currentCredits = await CreditService.instance.getCredits();
-      if (currentCredits < 5) {
-        _showStyledSnackBar(message: 'You need at least 5 credits to send a message.', isError: true);
-        _httpClient?.close();
-        return;
-      }
-      
-      await CreditService.instance.deductCredits(5);
+      // Credit system removed - no longer needed
   
       final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
       bool isAgentModel = modelConfig?.type == 'openai_compatible';
@@ -343,8 +336,8 @@ Based on the context above, answer the following prompt: $input""";
       return;
     }
     
-    // Use the new ChatModeHandler to determine logic
-    final handler = ChatModeHandler(prompt: finalInputForAI, mode: _chatMode);
+            // Use auto mode for all requests - AI will determine the appropriate handling
+        final handler = ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto);
     final modeResult = await handler.process();
 
     _lastSearchResults = modeResult.searchResults;
@@ -376,7 +369,7 @@ Based on the context above, answer the following prompt: $input""";
       String finalSystemPrompt = systemPrompt;
 
       if(toolExecutionReport != null && toolExecutionReport.isNotEmpty) {
-        final agentSystemPrompt = await ChatModeHandler(prompt: '', mode: ChatMode.agent).process().then((r) => r.systemPrompt);
+        final agentSystemPrompt = await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt);
         finalSystemPrompt = """$agentSystemPrompt
 ---
 AGENT EXECUTION REPORT:
@@ -583,11 +576,11 @@ Based on the successful execution of your plan, provide the final synthesized an
     _addMessageToList(ChatMessage(role: 'model', text: '', timestamp: DateTime.now()));
     _smoothScrollToBottom();
 
-    await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: finalReport.toString(), systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.agent).process().then((r) => r.systemPrompt));
+          await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: finalReport.toString(), systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt));
   }
   
   Future<bool> _handleToolCall(String responseText, String originalUserPrompt) async {
-    final handler = ChatModeHandler(prompt: originalUserPrompt, mode: _chatMode);
+          final handler = ChatModeHandler(prompt: originalUserPrompt, mode: ChatMode.auto);
     final modeResult = await handler.process();
     if (!modeResult.allowToolUse) return false;
 
@@ -628,7 +621,7 @@ Based on the successful execution of your plan, provide the final synthesized an
             if (tool != 'list_deployed_sites' && tool != 'image_editing' && tool != 'image_generation') {
               _addAgentStatusMessage("[Result]\n$result", Icons.check_circle_outline);
             }
-            await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: "--- Step 1: $tool ---\nResult: $result\n", systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.agent).process().then((r) => r.systemPrompt));
+            await _sendOpenAICompatibleStream(originalUserPrompt, toolExecutionReport: "--- Step 1: $tool ---\nResult: $result\n", systemPrompt: await ChatModeHandler(prompt: '', mode: ChatMode.auto).process().then((r) => r.systemPrompt));
             
             return true;
           }
@@ -684,7 +677,7 @@ Based on the successful execution of your plan, provide the final synthesized an
     }
 
     if (error != null) {
-      print("Aham Streaming Error: $error");
+      print("AhamAI Streaming Error: $error");
       if (_messages.isNotEmpty && _messages.last.role == 'model') {
         final errorMessage = error is http.ClientException
             ? '❌ Error: ${error.message}'
@@ -829,12 +822,7 @@ Based on the successful execution of your plan, provide the final synthesized an
 
     setState(() => _isSending = true);
     try {
-        final currentCredits = await CreditService.instance.getCredits();
-        if (currentCredits < 5) {
-            _showStyledSnackBar(message: 'You need at least 5 credits to regenerate a response.', isError: true);
-            return;
-        }
-        await CreditService.instance.deductCredits(5);
+            // Credit system removed - no longer needed
 
         if (messageImageBytes != null) {
           _attachedImage = XFile.fromData(messageImageBytes, name: 'image.jpg');
@@ -996,7 +984,7 @@ Based on the successful execution of your plan, provide the final synthesized an
         message: message,
         onEdit: (String name, String siteId) {
           setState(() {
-            _chatMode = ChatMode.agent;
+            // Auto mode always used - no manual switching needed
             _controller.text = 'Redeploy the site "$name" (ID: $siteId) with the following changes: ';
             _controller.selection = TextSelection.fromPosition(TextPosition(offset: _controller.text.length));
           });
@@ -1130,21 +1118,7 @@ Based on the successful execution of your plan, provide the final synthesized an
     );
   }
 
-  IconData _getIconForMode(ChatMode mode) {
-    switch (mode) {
-      case ChatMode.chat: return CupertinoIcons.chat_bubble_2_fill;
-      case ChatMode.agent: return CupertinoIcons.sparkles;
-      case ChatMode.auto: return Icons.auto_awesome_rounded;
-    }
-  }
-
-  String _getLabelForMode(ChatMode mode) {
-    switch (mode) {
-      case ChatMode.chat: return "Chat";
-      case ChatMode.agent: return "Agent";
-      case ChatMode.auto: return "Auto";
-    }
-  }
+  // Chat mode helper methods removed - no longer needed
 
   @override
   Widget build(BuildContext context) {
@@ -1197,7 +1171,6 @@ Based on the successful execution of your plan, provide the final synthesized an
                             tooltip: 'Attach',
                             color: theme.colorScheme.secondary,
                           ),
-                          _buildModeSwitcher(canInteract, theme),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Padding(
@@ -1210,7 +1183,7 @@ Based on the successful execution of your plan, provide the final synthesized an
                                 maxLines: 5,
                                 minLines: 1,
                                 decoration: InputDecoration.collapsed(
-                                  hintText: !canInteract ? 'Aham is responding...' : 'Ask anything...',
+                                  hintText: !canInteract ? 'AhamAI is responding...' : 'Ask anything...',
                                   hintStyle: TextStyle(color: theme.hintColor.withOpacity(0.7)),
                                 ),
                               ),
@@ -1260,56 +1233,7 @@ Based on the successful execution of your plan, provide the final synthesized an
     }
   }
 
-  Widget _buildModeSwitcher(bool canInteract, ThemeData theme) {
-    return PopupMenuButton<ChatMode>(
-      onSelected: (mode) {
-        if (canInteract) setState(() => _chatMode = mode);
-      },
-      tooltip: "Select Mode (${_getLabelForMode(_chatMode)})",
-      offset: const Offset(0, -150),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
-      color: theme.brightness == Brightness.dark 
-          ? const Color(0xFF2c2c2e).withOpacity(0.8) // Dark mode glass color
-          : Colors.white.withOpacity(0.8), // Light mode glass color
-      elevation: 8,
-      itemBuilder: (context) => ChatMode.values.map((mode) => PopupMenuItem(
-        value: mode,
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Row(children: [
-              Icon(_getIconForMode(mode), size: 20, color: theme.colorScheme.onSurface),
-              const SizedBox(width: 12),
-              Text(_getLabelForMode(mode)),
-            ]),
-          ),
-        ),
-      )).toList(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _getIconForMode(_chatMode),
-              size: 18,
-              color: canInteract ? theme.colorScheme.secondary : theme.disabledColor,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _getLabelForMode(_chatMode),
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: canInteract ? theme.colorScheme.onSurface : theme.disabledColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // Mode switcher removed - AI auto-detects the appropriate mode
 }
 
 class AgentStatusMessage extends StatelessWidget {
