@@ -191,9 +191,18 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         setState(() {
           _controller.text = result.recognizedWords;
         });
+        
+        // Auto-send when speech is final (user finished speaking)
+        if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted && _controller.text.trim().isNotEmpty) {
+              _sendMessage(_controller.text);
+            }
+          });
+        }
       },
       listenFor: const Duration(seconds: 30),
-      pauseFor: const Duration(seconds: 3),
+      pauseFor: const Duration(seconds: 2), // Reduced to 2 seconds for faster response
       partialResults: true,
       localeId: 'en_US',
       cancelOnError: true,
@@ -205,6 +214,15 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   void _stopListening() async {
     await _speechToText.stop();
     setState(() => _isListening = false);
+    
+    // Auto-send if there's text when manually stopped
+    if (_controller.text.trim().isNotEmpty) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _controller.text.trim().isNotEmpty) {
+          _sendMessage(_controller.text);
+        }
+      });
+    }
   }
 
   // Toggle listening
@@ -748,8 +766,8 @@ Based on the successful execution of your plan, provide the final synthesized an
       print("AhamAI Streaming Error: $error");
       if (_messages.isNotEmpty && _messages.last.role == 'model') {
         final errorMessage = error is http.ClientException
-            ? '❌ Error: ${error.message}'
-            : '❌ Error: $error';
+            ? 'ERROR: ${error.message}'
+            : 'ERROR: $error';
         _messages[_messages.length - 1] = ChatMessage(role: 'model', text: errorMessage, timestamp: DateTime.now());
       }
       setState(() { _isStreaming = false; });
@@ -1255,16 +1273,21 @@ Based on the successful execution of your plan, provide the final synthesized an
                                 textInputAction: TextInputAction.send,
                                 maxLines: 5,
                                 minLines: 1,
+                                textAlignVertical: TextAlignVertical.center,
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: theme.colorScheme.onSurface,
                                 ),
-                                decoration: InputDecoration.collapsed(
+                                decoration: InputDecoration(
                                   hintText: !canInteract ? 'AhamAI is responding...' : 'Ask anything...',
                                   hintStyle: TextStyle(
                                     color: theme.hintColor.withOpacity(0.7),
                                     fontSize: 16,
                                   ),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                 ),
                               ),
                             ),

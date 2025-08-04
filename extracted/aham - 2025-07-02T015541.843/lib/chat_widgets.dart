@@ -205,7 +205,7 @@ class StatelessMessageWidget extends StatelessWidget {
                 : Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent),
               ),
             if (message.searchResults != null && message.searchResults!.isNotEmpty) SearchResultsWidget(results: message.searchResults!),
-            if (cleanedMessage.isNotEmpty && !message.text.startsWith('❌ Error:')) AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
+            if (cleanedMessage.isNotEmpty && !message.text.startsWith('ERROR:')) AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
           ]));
         }
 

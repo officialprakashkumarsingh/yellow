@@ -8,6 +8,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:lottie/lottie.dart';
 import 'chat_screen.dart';
 import 'chat_ui_helpers.dart';
 import 'live_activity_indicator.dart';
@@ -189,6 +190,11 @@ class StatelessMessageWidget extends StatelessWidget {
         if (isModelMessage) {
           if (message.text == 'Searching the web...') return const LiveActivityIndicator(initialLabel: 'Searching the web...', activities: ['Analyzing top results...', 'Composing answer...'], icon: Icons.public);
           
+          // Check if this is an error message
+          if (message.text.startsWith('ERROR:')) {
+            return _buildErrorMessage(message.text.substring(6).trim(), context);
+          }
+          
           final content = _parseMessageContent(message.text);
           final thoughts = content['thoughts']!;
           final cleanedMessage = content['cleanedMessage']!;
@@ -210,7 +216,7 @@ class StatelessMessageWidget extends StatelessWidget {
                       child: messageContent
                     ),
                   ),
-                if (cleanedMessage.isNotEmpty && !message.text.startsWith('❌ Error:')) 
+                if (cleanedMessage.isNotEmpty && !message.text.startsWith('ERROR:')) 
                   AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)
               ]
             )
@@ -353,7 +359,73 @@ class ThoughtsExpansionPanel extends StatelessWidget {
   }
 }
 
-Map<String, String> _parseMessageContent(String rawText) {
+  Widget _buildErrorMessage(String errorText, BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+                         Container(
+               width: 40,
+               height: 40,
+               decoration: BoxDecoration(
+                 color: Colors.red.withOpacity(0.2),
+                 shape: BoxShape.circle,
+               ),
+               child: Icon(
+                 Icons.warning_rounded,
+                 color: Colors.red.shade600,
+                 size: 24,
+               ),
+             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Something went wrong',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    errorText,
+                    style: TextStyle(
+                      color: Colors.red.shade600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please try again or check your connection.',
+                    style: TextStyle(
+                      color: Colors.red.shade500,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Map<String, String> _parseMessageContent(String rawText) {
   final thoughtRegex = RegExp(r"<(thought|tool_code|think|reasoning)>([\s\S]*?)<\/\1>\n*", multiLine: true);
   final thoughtsBuffer = StringBuffer();
   
