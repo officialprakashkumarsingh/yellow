@@ -51,7 +51,8 @@ class AhamRoot extends StatelessWidget {
         // Get the actual current brightness from the context
         final isDarkMode = Theme.of(context).brightness == Brightness.dark;
         final statusBarBrightness = isDarkMode ? Brightness.light : Brightness.dark;
-        final navBarColor = isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
+        // Fix: Dark navigation bar for dark mode, light for light mode
+        final navBarColor = isDarkMode ? const Color(0xFF1C1C1E) : const Color(0xFFF8F9FA);
         
         SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,

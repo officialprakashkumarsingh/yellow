@@ -41,6 +41,9 @@ class OpenAIService {
         'max_tokens': 4000,
       };
 
+      debugPrint('OpenAI Request: ${jsonEncode(requestBody)}');
+      debugPrint('API URL: ${config.apiBaseUrl}/v1/chat/completions');
+
       final request = http.Request(
         'POST',
         Uri.parse('${config.apiBaseUrl}/v1/chat/completions'),
@@ -61,6 +64,7 @@ class OpenAIService {
         await _handleStreamingResponse(streamedResponse, controller);
       } else {
         final errorBody = await streamedResponse.stream.bytesToString();
+        debugPrint('API Error: ${streamedResponse.statusCode} - $errorBody');
         throw Exception('API request failed: ${streamedResponse.statusCode} - $errorBody');
       }
     } catch (e) {
