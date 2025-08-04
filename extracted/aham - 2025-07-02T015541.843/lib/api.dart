@@ -8,7 +8,7 @@ class ApiConfigService {
 
   List<ChatModelConfig> _availableModels = [];
   bool _isInitialized = false;
-  String _selectedModelId = 'gpt-4o-mini'; // Default model
+  String _selectedModelId = 'moonshotai/kimi-k2-instruct'; // Default model
 
   // API Configuration
   static const String _apiBaseUrl = 'https://ahamai-api.officialprakashkrsingh.workers.dev';
@@ -52,6 +52,16 @@ class ApiConfigService {
       debugPrint("Warning: Could not load models from API. Using fallback. Error: $e");
       // Fallback to default models if API fails
       _availableModels = [
+        ChatModelConfig(
+          displayName: 'Kimi K2 Instruct',
+          modelId: 'moonshotai/kimi-k2-instruct',
+          provider: 'ahamai',
+          type: 'chat',
+          status: 'active',
+          description: 'Advanced AI model by Moonshot AI',
+          apiKey: _apiKey,
+          apiUrl: _apiBaseUrl,
+        ),
         ChatModelConfig(
           displayName: 'GPT-4o Mini',
           modelId: 'gpt-4o-mini',
