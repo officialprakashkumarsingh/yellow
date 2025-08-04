@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:aham/api.dart';
-import 'package:aham/web_search.dart';
+import 'package:ahamai/api.dart';
+import 'package:ahamai/web_search.dart';
 
 // Defines the available interaction modes.
 enum ChatMode { auto, chat, agent }

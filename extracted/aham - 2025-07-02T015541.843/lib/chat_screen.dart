@@ -2,24 +2,25 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
-import 'package:aham/openai_service.dart';
+import 'package:ahamai/openai_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:aham/api.dart';
-import 'package:aham/chat_ui_helpers.dart';
-import 'package:aham/file_processing.dart';
-import 'package:aham/image_editor.dart';
-import 'package:aham/logincredits.dart';
-import 'package:aham/models.dart';
-import 'package:aham/theme.dart';
-import 'package:aham/ui_widgets.dart';
-import 'package:aham/web_search.dart';
-import 'package:aham/tools.dart';
-import 'package:aham/chat_mode_logic.dart';
+import 'package:ahamai/api.dart';
+import 'package:ahamai/chat_ui_helpers.dart';
+import 'package:ahamai/file_processing.dart';
+import 'package:ahamai/image_editor.dart';
+import 'package:ahamai/logincredits.dart';
+import 'package:ahamai/models.dart';
+import 'package:ahamai/theme.dart';
+import 'package:ahamai/ui_widgets.dart';
+import 'package:ahamai/web_search.dart';
+import 'package:ahamai/tools.dart';
+import 'package:ahamai/chat_mode_logic.dart';
+import 'package:ahamai/openai_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -257,10 +258,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _sendVisionMessage(String input, XFile imageFile) async {
-    if (_geminiVisionModel == null) {
-      _onStreamingError("Vision model is not configured.");
-      return;
-    }
+    // Vision capabilities are now handled by OpenAI service
     _isStoppedByUser = false;
     _lastSearchResults = null;
     final imageBytes = await imageFile.readAsBytes();

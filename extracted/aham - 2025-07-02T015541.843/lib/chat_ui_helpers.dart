@@ -11,7 +11,7 @@ import 'api.dart';
 import 'theme.dart';
 import 'ui_widgets.dart';
 import 'web_search.dart';
-import 'package:aham/models.dart';
+import 'package:ahamai/models.dart';
 
 class DeployedSitesListMessage extends StatelessWidget {
   final ChatMessage message;

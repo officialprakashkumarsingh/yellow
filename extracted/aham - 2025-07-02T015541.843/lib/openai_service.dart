@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:aham/api.dart';
-import 'package:aham/models.dart';
+import 'package:ahamai/api.dart';
+import 'package:ahamai/models.dart';
 
 class OpenAIService {
   static final OpenAIService instance = OpenAIService._internal();

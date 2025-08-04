@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'dart:math'; // Import for pi
-import 'package:aham/ui_widgets.dart';
+import 'package:ahamai/ui_widgets.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

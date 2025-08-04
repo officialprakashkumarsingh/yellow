@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:aham/ui_widgets.dart';
+import 'package:ahamai/ui_widgets.dart';
 
 class CreditService {
   static final CreditService instance = CreditService._internal();

@@ -2,7 +2,7 @@
 
 import 'dart:typed_data';
 import 'package:flutter/widgets.dart'; // Added for IconData
-import 'package:aham/web_search.dart';
+import 'package:ahamai/web_search.dart';
 
 // MODIFIED: Added 'agent_status' and 'scraped_content' types
 enum MessageType { 

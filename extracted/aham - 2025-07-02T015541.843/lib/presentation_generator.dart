@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:aham/openai_service.dart';
+import 'package:ahamai/openai_service.dart';
 import 'api.dart';
 import 'theme.dart';
 

@@ -12,12 +12,12 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:archive/archive_io.dart';
 
 
-import 'package:aham/api.dart';
-import 'package:aham/image_editor.dart';
-import 'package:aham/models.dart';
-import 'package:aham/presentation_generator.dart';
-import 'package:aham/web_search.dart';
-import 'package:aham/aham-host.dart';
+import 'package:ahamai/api.dart';
+import 'package:ahamai/image_editor.dart';
+import 'package:ahamai/models.dart';
+import 'package:ahamai/presentation_generator.dart';
+import 'package:ahamai/web_search.dart';
+import 'package:ahamai/aham-host.dart';
 
 // --- Re-integrated File Creation Logic ---
 class FileCreationService {
@@ -541,11 +541,20 @@ class ToolExecutor {
     onAddMessage(ChatMessage(role: 'model', text: 'Generating image...', type: MessageType.image, imageUrl: null, timestamp: DateTime.now()));
     
     try {
-      final imageUrl = await ImageApi.generateImage(prompt, modelId);
-      await precacheImage(NetworkImage(imageUrl), context);
-      onUpdateAssets(imageUrl, null);
-      onAddMessage(ChatMessage(role: 'model', text: '', type: MessageType.image, imageUrl: imageUrl, timestamp: DateTime.now()));
-      return "Successfully generated image at $imageUrl";
+      final imageUrl = await ImageApi.generateImage(
+        prompt: prompt,
+        modelId: modelId,
+      );
+      
+      if (imageUrl != null) {
+        await precacheImage(NetworkImage(imageUrl), context);
+        onUpdateAssets(imageUrl, null);
+        onAddMessage(ChatMessage(role: 'model', text: '', type: MessageType.image, imageUrl: imageUrl, timestamp: DateTime.now()));
+        return "Successfully generated image at $imageUrl";
+      } else {
+        onAddMessage(ChatMessage(role: 'model', text: '❌ Failed to generate image: No URL returned', type: MessageType.text, timestamp: DateTime.now()));
+        return "Agent Error: Image generation failed - no URL returned";
+      }
     } catch (e) {
       onAddMessage(ChatMessage(role: 'model', text: '❌ Failed to generate image: $e', type: MessageType.text, timestamp: DateTime.now()));
       return "Agent Error generating image: $e";

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:aham/chat_history_service.dart';
-import 'package:aham/logincredits.dart';
+import 'package:ahamai/chat_history_service.dart';
+import 'package:ahamai/logincredits.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -15,11 +15,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'api.dart';
 import 'chat_screen.dart';
+import 'chat_history_service.dart';
 import 'models.dart';
 import 'notification_screen.dart';
 import 'notification_service.dart';
 import 'theme.dart';
 import 'ui_widgets.dart';
+import 'logincredits.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
