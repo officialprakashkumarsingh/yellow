@@ -359,64 +359,32 @@ class ThoughtsExpansionPanel extends StatelessWidget {
   }
 }
 
-  Widget _buildErrorMessage(String errorText, BuildContext context) {
+    Widget _buildErrorMessage(String errorText, BuildContext context) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: Colors.red.withOpacity(0.1),
-          border: Border.all(color: Colors.red.withOpacity(0.3)),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-                         Container(
-               width: 40,
-               height: 40,
-               decoration: BoxDecoration(
-                 color: Colors.red.withOpacity(0.2),
-                 shape: BoxShape.circle,
-               ),
-               child: Icon(
-                 Icons.warning_rounded,
-                 color: Colors.red.shade600,
-                 size: 24,
-               ),
-             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Something went wrong',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red.shade700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    errorText,
-                    style: TextStyle(
-                      color: Colors.red.shade600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Please try again or check your connection.',
-                    style: TextStyle(
-                      color: Colors.red.shade500,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
+            Icon(
+              Icons.error_outline,
+              color: Colors.red.shade600,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                errorText,
+                style: TextStyle(
+                  color: Colors.red.shade700,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

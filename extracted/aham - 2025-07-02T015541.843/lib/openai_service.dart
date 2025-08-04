@@ -65,7 +65,27 @@ class OpenAIService {
       } else {
         final errorBody = await streamedResponse.stream.bytesToString();
         debugPrint('API Error: ${streamedResponse.statusCode} - $errorBody');
-        throw Exception('API request failed: ${streamedResponse.statusCode} - $errorBody');
+        
+        // Handle specific error codes
+        String errorMessage;
+        switch (streamedResponse.statusCode) {
+          case 523:
+            errorMessage = 'Server temporarily unavailable. Please try again in a moment.';
+            break;
+          case 429:
+            errorMessage = 'Too many requests. Please wait a moment and try again.';
+            break;
+          case 500:
+            errorMessage = 'Server error. Please try again.';
+            break;
+          case 503:
+            errorMessage = 'Service temporarily unavailable. Please try again.';
+            break;
+          default:
+            errorMessage = 'Connection error (${streamedResponse.statusCode}). Please check your internet and try again.';
+        }
+        
+        throw Exception(errorMessage);
       }
     } catch (e) {
       controller.addError('Error: $e');

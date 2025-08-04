@@ -44,12 +44,16 @@ class AhamRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeNotifier>(
       builder: (context, theme, child) {
-        // Keep both status bar and navigation bar transparent for clean look
-        SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        // Set system UI colors based on current theme
+        final isDark = theme.themeMode == ThemeMode.dark || 
+                      (theme.themeMode == ThemeMode.system && 
+                       WidgetsBinding.instance.platformDispatcher.platformBrightness == Brightness.dark);
+        
+        SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          systemNavigationBarColor: Colors.transparent,
-          systemNavigationBarIconBrightness: Brightness.light,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: isDark ? const Color(0xFF121212) : const Color(0xFFFFFFFF),
+          systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
           systemNavigationBarDividerColor: Colors.transparent,
         ));
 
