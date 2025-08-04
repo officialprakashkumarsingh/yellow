@@ -710,12 +710,19 @@ Based on the context above, answer the following prompt: $input""";
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(_chatTitle),
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          if (_isStreaming || _isSending) 
-            IconButton(onPressed: _stopStreaming, icon: const Icon(Icons.stop_circle_outlined), tooltip: 'Stop'),
-        ],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: theme.brightness == Brightness.dark 
+                ? [draculaBackground.withOpacity(0.95), draculaCurrentLine.withOpacity(0.95)]
+                : [Colors.white.withOpacity(0.95), Colors.grey.shade50.withOpacity(0.95)],
+            ),
+          ),
+        ),
       ),
       body: Stack(
         children: [
@@ -736,6 +743,15 @@ Based on the context above, answer the following prompt: $input""";
                 if (_attachedImage != null) _buildAttachmentPreview(),
                 Container(
                   padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: theme.brightness == Brightness.dark 
+                        ? [Colors.transparent, draculaBackground.withOpacity(0.8)]
+                        : [Colors.transparent, Colors.white.withOpacity(0.8)],
+                    ),
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
