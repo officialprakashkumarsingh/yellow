@@ -205,9 +205,10 @@ class StatelessMessageWidget extends StatelessWidget {
                 if (cleanedMessage.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                    child: isDark 
-                      ? Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent)
-                      : Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), child: messageContent),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10), 
+                      child: messageContent
+                    ),
                   ),
                 if (cleanedMessage.isNotEmpty && !message.text.startsWith('❌ Error:')) 
                   AiMessageActions(onCopy: () => onCopy(cleanedMessage), onRegenerate: isLastMessage ? onRegenerate : null)

@@ -336,16 +336,30 @@ Based on the context above, answer the following prompt: $input""";
       return;
     }
     
-            // Use auto mode for all requests - AI will determine the appropriate handling
-        final handler = ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto);
+    // Use auto mode for all requests - AI will determine the appropriate handling
+    final handler = ChatModeHandler(prompt: finalInputForAI, mode: ChatMode.auto);
     final modeResult = await handler.process();
 
     _lastSearchResults = modeResult.searchResults;
     
-    await _sendOpenAICompatibleStream(
-      modeResult.finalInput,
-      systemPrompt: modeResult.systemPrompt,
-    );
+    // Use the OpenAI service for streaming instead of custom implementation
+    try {
+      final responseStream = await OpenAIService.instance.streamChatCompletion(
+        prompt: modeResult.finalInput,
+        messages: _messages.take(_messages.length - 2).toList(), // Exclude the last two messages (user and empty assistant)
+        systemPrompt: modeResult.systemPrompt,
+        modelId: _selectedChatModelId,
+      );
+      
+      _streamSubscription = responseStream.listen(
+        (chunk) => _handleStreamChunk(chunk),
+        onDone: _onStreamingDone,
+        onError: _onStreamingError,
+        cancelOnError: true,
+      );
+    } catch (e) {
+      _onStreamingError('Error: $e');
+    }
   }
 
   Future<void> _sendOpenAICompatibleStream(String input, {String? toolExecutionReport, String? overrideApiUrl, int redirectCount = 0, required String systemPrompt}) async {
@@ -418,6 +432,12 @@ Based on the successful execution of your plan, provide the final synthesized an
 
       if (response.statusCode != 200) {
         final errorBody = await response.stream.bytesToString();
+        
+        // Handle specific error codes
+        if (response.statusCode == 523) {
+          _onStreamingError("Server temporarily unavailable (523). Please try again in a moment.");
+          return;
+        }
         String errorMessage = "API Error (${response.statusCode})";
         try {
           final decodedError = jsonDecode(errorBody);
@@ -1165,16 +1185,20 @@ Based on the successful execution of your plan, provide the final synthesized an
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          IconButton(
-                            icon: const Icon(CupertinoIcons.add),
-                            onPressed: canInteract ? _showToolsBottomSheet : null,
-                            tooltip: 'Attach',
-                            color: theme.colorScheme.secondary,
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            child: IconButton(
+                              icon: const Icon(CupertinoIcons.add),
+                              onPressed: canInteract ? _showToolsBottomSheet : null,
+                              tooltip: 'Attach',
+                              color: theme.colorScheme.secondary,
+                              iconSize: 24,
+                              padding: const EdgeInsets.all(8),
+                            ),
                           ),
-                          const SizedBox(width: 8),
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
                               child: TextField(
                                 controller: _controller,
                                 enabled: canInteract,
@@ -1182,15 +1206,24 @@ Based on the successful execution of your plan, provide the final synthesized an
                                 textInputAction: TextInputAction.send,
                                 maxLines: 5,
                                 minLines: 1,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: theme.colorScheme.onSurface,
+                                ),
                                 decoration: InputDecoration.collapsed(
                                   hintText: !canInteract ? 'AhamAI is responding...' : 'Ask anything...',
-                                  hintStyle: TextStyle(color: theme.hintColor.withOpacity(0.7)),
+                                  hintStyle: TextStyle(
+                                    color: theme.hintColor.withOpacity(0.7),
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          _buildRightActionButton(canInteract, theme),
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            child: _buildRightActionButton(canInteract, theme),
+                          ),
                         ],
                       ),
                     ),
