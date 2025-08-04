@@ -19,7 +19,7 @@ import 'package:ahamai/models.dart';
 import 'package:ahamai/theme.dart';
 import 'package:ahamai/ui_widgets.dart';
 import 'package:ahamai/web_search.dart';
-import 'package:ahamai/tools.dart';
+
 import 'package:ahamai/chat_mode_logic.dart';
 import 'package:ahamai/openai_service.dart';
 import 'package:flutter/cupertino.dart';
@@ -82,7 +82,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   String? _lastCreatedImageUrl;
   String? _lastCreatedFilePath;
 
-  final Map<String, String> _agentMemory = {};
+
 
   @override
   void initState() {
@@ -279,9 +279,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       // Credit system removed - no longer needed
   
       final modelConfig = ApiConfigService.instance.getModelConfigById(_selectedChatModelId);
-      bool isAgentModel = modelConfig?.type == 'openai_compatible';
-
-      if (_attachedImage != null && !isAgentModel) {
+          if (_attachedImage != null) {
         _httpClient?.close();
         await _sendVisionMessage(input, _attachedImage!);
       } else {
@@ -571,44 +569,13 @@ Based on the successful execution of your plan, provide the final synthesized an
     }
   }
 
-  void _addAgentStatusMessage(String text, IconData icon) {
-     _addMessageToList(ChatMessage(
-        role: 'model',
-        text: text,
-        type: MessageType.agent_status,
-        timestamp: DateTime.now(),
-        statusIcon: icon,
-      ));
-      _smoothScrollToBottom();
+  void _onStreamingDone() {
+    _finalizeStream();
   }
-  
-  Future<void> _executeAgentPlan(String originalUserPrompt, Map<String, dynamic> agentResponse) async {
-    final plan = agentResponse['plan'] as List<dynamic>?;
-    if (plan == null) {
-      _onStreamingError("Agent Error: Plan is missing.");
-      return;
-    }
-    
-    final userMessage = _messages.lastWhere((m) => m.role == 'user');
-    final userImage = userMessage.imageBytes != null ? XFile.fromData(userMessage.imageBytes!, name: 'user_image.jpg') : null;
-    
-    final toolExecutor = ToolExecutor(
-        context: context,
-        onAddMessage: _addMessageToList,
-        onUpdateAssets: (imageUrl, filePath) {
-          if (imageUrl != null) _lastCreatedImageUrl = imageUrl;
-          if (filePath != null) _lastCreatedFilePath = filePath;
-        },
-        agentMemory: _agentMemory,
-        userImage: userImage
-    );
 
-    final thought = agentResponse['thought'] as String?;
-    final critique = agentResponse['critique'] as String?;
-
-    _removeMessagesFrom(_messages.length - 1);
-    if (thought != null) _addAgentStatusMessage("[Thought]\n$thought", CupertinoIcons.lightbulb);
-    if (critique != null) _addAgentStatusMessage("[Critique]\n$critique", Icons.gavel_rounded);
+  void _onStreamingError(dynamic error) {
+    _finalizeStream(error: error);
+  }
 
     List<String> stepResults = [];
     var finalReport = StringBuffer("Autonomous Agent Execution Report:\n\n");
@@ -1078,22 +1045,7 @@ Based on the successful execution of your plan, provide the final synthesized an
       );
     }
 
-    if (message.type == MessageType.agent_status) {
-      if (message.text.contains('[SCRAPED_CONTENT_START]')) {
-        return const SizedBox.shrink();
-      }
-      
-      IconData icon;
-      if (message.text.startsWith('[Thought]')) icon = CupertinoIcons.lightbulb;
-      else if (message.text.startsWith('[Critique]')) icon = Icons.gavel_rounded;
-      else if (message.text.startsWith('[Executing:')) icon = Icons.play_arrow_rounded;
-      else if (message.text.startsWith('[Result]')) icon = Icons.check_circle_outline;
-      else icon = Icons.info_outline;
-      
-      return AgentStatusMessage(message: ChatMessage(
-        role: message.role, text: message.text, timestamp: message.timestamp, statusIcon: icon
-      ));
-    }
+
     
     if (message.role == 'model' && !((_isStreaming || _isSending) && index == _messages.length - 1) ) {
       if (message.type == MessageType.image && message.imageUrl != null) {
@@ -1256,7 +1208,7 @@ Based on the successful execution of your plan, provide the final synthesized an
                             margin: const EdgeInsets.only(bottom: 4),
                             child: IconButton(
                               icon: const Icon(CupertinoIcons.add),
-                              onPressed: canInteract ? _showToolsBottomSheet : null,
+                              onPressed: null, // Tools removed
                               tooltip: 'Attach',
                               color: theme.colorScheme.secondary,
                               iconSize: 24,
